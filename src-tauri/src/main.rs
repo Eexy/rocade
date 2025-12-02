@@ -4,8 +4,8 @@
 use std::env;
 
 fn main() {
-    if env::var("__NV_DISABLE_EXPLICIT_SYNC").is_err() {
-        env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
+    if env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+        env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
     rocade_lib::run()
 }
