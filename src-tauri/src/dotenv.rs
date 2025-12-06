@@ -5,7 +5,7 @@ use std::{
 
 /// Read dotenv file from current or parent directory
 /// Return file path
-pub fn get_file() -> Result<PathBuf, String> {
+pub fn dotenv() -> Result<PathBuf, String> {
     get_file_path_if_exist(&|p: &Path| p.exists())
 }
 
