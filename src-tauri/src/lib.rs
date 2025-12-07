@@ -18,6 +18,9 @@ pub fn run() {
                 window.open_devtools();
                 window.close_devtools();
             }
+
+            let env = dotenv::dotenv();
+            dbg!(env);
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

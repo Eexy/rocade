@@ -1,13 +1,39 @@
-use std::{env, fs::File, path::PathBuf};
+use std::{
+    collections::HashMap,
+    env,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::PathBuf,
+};
 
 /// Read dotenv file from current or parent directory
-pub fn dotenv() -> Result<(), String> {
+/// and return hashmap
+pub fn dotenv() -> Result<HashMap<String, String>, String> {
     let file = get_dotenv_file()?;
 
-    Ok(())
+    let lines = BufReader::new(file).lines();
+    let mut env_vars = HashMap::new();
+
+    for line in lines.map_while(Result::ok) {
+        let v: Vec<&str> = line.split('=').collect();
+
+        if v.len() == 2 {
+            match v.get(0) {
+                Some(key) => match v.get(1) {
+                    Some(val) => {
+                        env_vars.insert(key.trim().to_string(), val.trim().to_string());
+                    }
+                    None => {}
+                },
+                None => {}
+            }
+        }
+    }
+
+    Ok(env_vars)
 }
 
-pub fn get_dotenv_file() -> Result<File, String> {
+fn get_dotenv_file() -> Result<File, String> {
     let file = File::open(PathBuf::from(".env"));
 
     match file {
