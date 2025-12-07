@@ -2,12 +2,9 @@ use std::{env, fs::File, path::PathBuf};
 
 /// Read dotenv file from current or parent directory
 pub fn dotenv() -> Result<(), String> {
-    let file = get_dotenv_file();
+    let file = get_dotenv_file()?;
 
-    match file {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
+    Ok(())
 }
 
 pub fn get_dotenv_file() -> Result<File, String> {
