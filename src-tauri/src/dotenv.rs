@@ -41,6 +41,10 @@ fn parse_dotenv_file(file: File) -> HashMap<String, String> {
     let mut env_vars = HashMap::new();
 
     for line in lines.map_while(Result::ok) {
+        if line.starts_with("#") {
+            continue;
+        }
+
         let v: Vec<&str> = line.split('=').collect();
 
         if v.len() == 2 {
