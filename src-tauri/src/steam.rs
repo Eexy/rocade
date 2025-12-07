@@ -12,3 +12,13 @@ impl SteamState {
         &self.key
     }
 }
+
+pub struct SteamApiClient {
+    key: String,
+}
+
+impl SteamApiClient {
+    pub fn new(key: String) -> Self {
+        SteamApiClient { key }
+    }
+}
