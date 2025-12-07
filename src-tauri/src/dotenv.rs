@@ -11,26 +11,7 @@ use std::{
 pub fn dotenv() -> Result<HashMap<String, String>, String> {
     let file = get_dotenv_file()?;
 
-    let lines = BufReader::new(file).lines();
-    let mut env_vars = HashMap::new();
-
-    for line in lines.map_while(Result::ok) {
-        let v: Vec<&str> = line.split('=').collect();
-
-        if v.len() == 2 {
-            match v.get(0) {
-                Some(key) => match v.get(1) {
-                    Some(val) => {
-                        env_vars.insert(key.trim().to_string(), val.trim().to_string());
-                    }
-                    None => {}
-                },
-                None => {}
-            }
-        }
-    }
-
-    Ok(env_vars)
+    Ok(parse_dotenv_file(file))
 }
 
 fn get_dotenv_file() -> Result<File, String> {
@@ -53,4 +34,27 @@ fn get_dotenv_file() -> Result<File, String> {
             }
         }
     }
+}
+
+fn parse_dotenv_file(file: File) -> HashMap<String, String> {
+    let lines = BufReader::new(file).lines();
+    let mut env_vars = HashMap::new();
+
+    for line in lines.map_while(Result::ok) {
+        let v: Vec<&str> = line.split('=').collect();
+
+        if v.len() == 2 {
+            match v.get(0) {
+                Some(key) => match v.get(1) {
+                    Some(val) => {
+                        env_vars.insert(key.trim().to_string(), val.trim().to_string());
+                    }
+                    None => {}
+                },
+                None => {}
+            }
+        }
+    }
+
+    env_vars
 }
