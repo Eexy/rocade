@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use tauri::Manager;
 
-use crate::steam::SteamState;
+use crate::steam::{SteamApiClient, SteamState};
 
 mod dotenv;
 mod steam;
@@ -17,6 +17,7 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {
@@ -38,19 +39,27 @@ pub fn run() {
 
             let app_config = app.state::<HashMap<String, String>>();
 
-            if let Some(steam_api_key) = app_config.get("STEAM_API_KEY") {
-                let steam_state = SteamState::new(steam_api_key.clone());
-                app.manage::<SteamState>(steam_state);
-            } else {
-                panic!("unable to get steam api key from config");
+            match (app_config.get("STEAM_API_KEY"), app_config.get("STEAM_PROFILE_ID")) {
+                (Some(key), Some(profile_id)) => {
+                    let steam_state = SteamState::new(key.clone(), profile_id.clone());
+                    let steam_api_client = SteamApiClient::new(key.clone(), profile_id.clone());
+                    app.manage::<SteamState>(steam_state);
+                    app.manage::<SteamApiClient>(steam_api_client);
+                },
+                _ => {
+                    panic!("Unable to load steam config. Missing STEAM_KEY or STEAM_PROFILE_ID in dotenv file")
+                }
             }
 
+            
             #[cfg(debug_assertions)]
             {
                 let app_config = app.state::<HashMap<String, String>>();
                 dbg!(app_config);
                 let steam_state = app.state::<SteamState>();
                 dbg!(steam_state);
+                let steam_api_client = app.state::<SteamApiClient>();
+                dbg!(steam_api_client);
             }
 
             Ok(())
