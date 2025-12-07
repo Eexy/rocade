@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tauri::Manager;
 
 mod dotenv;
@@ -19,8 +21,17 @@ pub fn run() {
                 window.close_devtools();
             }
 
-            let env = dotenv::dotenv();
-            dbg!(env);
+            let config = dotenv::dotenv();
+
+            match config {
+                Ok(c) => {
+                    app.manage::<HashMap<String, String>>(c);
+                }
+                Err(_) => {
+                    panic!("unable to read config");
+                }
+            }
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
