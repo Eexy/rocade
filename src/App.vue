@@ -6,6 +6,13 @@
 
 <script setup lang="ts">
 import { Button } from "@/components/ui/button"
+import { onMounted } from "vue";
+import { invoke } from "@tauri-apps/api/core"
+
+onMounted(async () => {
+    const res = await invoke("greet")
+    console.log(res)
+})
 </script>
 
 <style scoped></style>
