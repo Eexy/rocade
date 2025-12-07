@@ -1,8 +1,12 @@
+use core::panic;
 use std::collections::HashMap;
 
 use tauri::Manager;
 
+use crate::steam::SteamState;
+
 mod dotenv;
+mod steam;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -30,6 +34,23 @@ pub fn run() {
                 Err(_) => {
                     panic!("unable to read config");
                 }
+            }
+
+            let app_config = app.state::<HashMap<String, String>>();
+
+            if let Some(steam_api_key) = app_config.get("STEAM_API_KEY") {
+                let steam_state = SteamState::new(steam_api_key.clone());
+                app.manage::<SteamState>(steam_state);
+            } else {
+                panic!("unable to get steam api key from config");
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                let app_config = app.state::<HashMap<String, String>>();
+                dbg!(app_config);
+                let steam_state = app.state::<SteamState>();
+                dbg!(steam_state);
             }
 
             Ok(())
