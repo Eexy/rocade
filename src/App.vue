@@ -1,6 +1,6 @@
 <template>
     <SidebarProvider>
-        <GameSidebar></GameSidebar>
+        <AppSidebar></AppSidebar>
         <main class="">
             <SidebarTrigger></SidebarTrigger>
             <Button @click="console.log('hello world')">Hello world!</Button>
@@ -16,7 +16,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { Game } from "@/types/game";
 import { useGameStore } from "@/stores/game.store";
 import { storeToRefs } from "pinia";
-import GameSidebar from "@/components/game-sidebar/GameSidebar.vue"
+import AppSidebar from "@/components/app-sidebar/AppSidebar.vue"
 
 const { games } = storeToRefs(useGameStore())
 
