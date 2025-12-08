@@ -1,17 +1,26 @@
 <template>
-    <main class="">
-        <Button @click="console.log('hello world')">Hello world!</Button>
-    </main>
+    <SidebarProvider>
+        <main class="">
+            <SidebarTrigger></SidebarTrigger>
+            <Button @click="console.log('hello world')">Hello world!</Button>
+        </main>
+    </SidebarProvider>
 </template>
 
 <script setup lang="ts">
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger, SidebarProvider } from "@/components/ui/sidebar"
 import { onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core"
+import { Game } from "./types/game";
+import { useGameStore } from "./stores/game.store";
+import { storeToRefs } from "pinia";
+
+const { games } = storeToRefs(useGameStore())
 
 onMounted(async () => {
-    const res = await invoke("get_games")
-    console.log(res)
+    const res: Game[] = await invoke("get_games")
+    games.value = res
 })
 </script>
 
