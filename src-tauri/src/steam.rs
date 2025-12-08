@@ -32,16 +32,21 @@ pub struct SteamApiClient {
 pub struct Game {
     appid: u64,
     name: String,
-    playtime_2weeks: u64,
-    playtime_forever: u64,
+    playtime_2weeks: Option<u64>,
+    playtime_forever: Option<u64>,
     img_icon_url: Option<String>,
     img_logo_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct GameList {
-    count: u64,
+    game_count: u64,
     games: Vec<Game>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GameListResponse {
+    response: GameList,
 }
 
 impl SteamApiClient {
@@ -54,7 +59,7 @@ impl SteamApiClient {
     }
 
     pub async fn get_games(&self) -> Result<Vec<Game>, String> {
-        let url = format!("http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={}&steamid={}&format=json", self.key, self.profile_id);
+        let url = format!("http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={}&steamid={}&include_appinfo=1&format=json", self.key, self.profile_id);
         let res = self
             .client
             .get(url)
@@ -64,8 +69,8 @@ impl SteamApiClient {
 
         let body = res.text().await.map_err(|e| e.to_string())?;
 
-        let parsed: GameList = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+        let parsed: GameListResponse = serde_json::from_str(&body).map_err(|e| e.to_string())?;
 
-        Ok(parsed.games)
+        Ok(parsed.response.games)
     }
 }
