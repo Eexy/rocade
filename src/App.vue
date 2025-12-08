@@ -10,7 +10,7 @@ import { onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core"
 
 onMounted(async () => {
-    const res = await invoke("greet")
+    const res = await invoke("get_games")
     console.log(res)
 })
 </script>
