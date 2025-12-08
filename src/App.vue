@@ -1,5 +1,6 @@
 <template>
     <SidebarProvider>
+        <GameSidebar></GameSidebar>
         <main class="">
             <SidebarTrigger></SidebarTrigger>
             <Button @click="console.log('hello world')">Hello world!</Button>
@@ -12,9 +13,10 @@ import { Button } from "@/components/ui/button"
 import { SidebarTrigger, SidebarProvider } from "@/components/ui/sidebar"
 import { onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core"
-import { Game } from "./types/game";
-import { useGameStore } from "./stores/game.store";
+import { Game } from "@/types/game";
+import { useGameStore } from "@/stores/game.store";
 import { storeToRefs } from "pinia";
+import GameSidebar from "@/components/game-sidebar/GameSidebar.vue"
 
 const { games } = storeToRefs(useGameStore())
 
