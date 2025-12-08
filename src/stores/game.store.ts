@@ -1,9 +1,16 @@
 import { Game } from "@/types/game";
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 
 export const useGameStore = defineStore('game', () => {
     const games = ref<Game[]>([]);
+    const search = ref("");
 
-    return { games }
+    const filteredGames = computed(() => {
+        if (!search.value.length) return games.value
+
+        return games.value.filter((game) => game.name.toLowerCase().includes(search.value.toLowerCase()))
+    })
+
+    return { games, filteredGames, search }
 })

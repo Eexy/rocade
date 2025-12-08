@@ -1,8 +1,11 @@
 <template>
     <Sidebar>
+        <SidebarHeader>
+            <Input v-model="search"></Input>
+        </SidebarHeader>
         <SidebarContent>
             <ul>
-                <li v-for="game in games" :key="game.appid" class="flex gap-2 items-center">
+                <li v-for="game in filteredGames" :key="game.appid" class="flex gap-2 items-center">
                     <img :src="`http://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg`"
                         class="size-9" />
                     {{ game.name }}
@@ -15,9 +18,10 @@
 <script setup lang="ts">
 import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
-import { Sidebar, SidebarContent } from "@/components/ui/sidebar"
+import { Sidebar, SidebarContent, SidebarHeader } from "@/components/ui/sidebar"
+import { Input } from "@/components/ui/input"
 
-const { games } = storeToRefs(useGameStore())
+const { filteredGames, search } = storeToRefs(useGameStore())
 
 </script>
 
