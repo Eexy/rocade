@@ -3,13 +3,12 @@
         <AppSidebar></AppSidebar>
         <main class="">
             <SidebarTrigger></SidebarTrigger>
-            <Button @click="console.log('hello world')">Hello world!</Button>
+            <RouterView></RouterView>
         </main>
     </SidebarProvider>
 </template>
 
 <script setup lang="ts">
-import { Button } from "@/components/ui/button"
 import { SidebarTrigger, SidebarProvider } from "@/components/ui/sidebar"
 import { onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core"

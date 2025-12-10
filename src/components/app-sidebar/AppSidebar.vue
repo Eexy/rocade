@@ -5,11 +5,13 @@
         </SidebarHeader>
         <SidebarContent>
             <ul>
-                <li v-for="game in filteredGames" :key="game.appid" class="flex gap-2 items-center">
-                    <img :src="`http://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg`"
-                        class="size-9" />
-                    {{ game.name }}
-                </li>
+                <RouterLink v-for="game in filteredGames" :key="game.appid" :to="`/games/${game.appid}`">
+                    <li class="flex gap-2 items-center">
+                        <img :src="`http://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg`"
+                            class="size-9" />
+                        {{ game.name }}
+                    </li>
+                </RouterLink>
             </ul>
         </SidebarContent>
     </Sidebar>
