@@ -1,6 +1,6 @@
 <template>
     <div>
-        <p>hello world {{ id }}</p>
+        <p>hello world {{ id }} </p>
     </div>
 </template>
 
@@ -8,11 +8,8 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
-
-const route = useRoute('/games/[id]')
-const id = computed(() => {
-    return route.params.id ?? ''
-})
+const route = useRoute('/games/[id]');
+const id = computed(() => route.params.id)
 
 
 </script>
