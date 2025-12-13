@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use crate::twitch::TwitchApiClient;
-use tauri::http::StatusCode;
+use tauri::http::{HeaderMap, HeaderValue, StatusCode};
 use tauri_plugin_http::reqwest::{Client, Response};
 
 pub struct IgdbApiClient {
@@ -11,15 +11,26 @@ pub struct IgdbApiClient {
 
 impl IgdbApiClient {
     pub fn new(twitch_client: TwitchApiClient) -> Self {
+        let mut headers = HeaderMap::new();
+
+        headers.insert(
+            "CLIENT-ID",
+            HeaderValue::from_str(twitch_client.get_client_id().as_str())
+                .expect("unable to set igdb client id"),
+        );
+
         return IgdbApiClient {
             twitch_client,
-            client: tauri_plugin_http::reqwest::Client::new(),
+            client: tauri_plugin_http::reqwest::Client::builder()
+                .default_headers(headers)
+                .build()
+                .expect("unable to build igdb client"),
         };
     }
 
     pub async fn get_games(&mut self) -> Result<(), String> {
         const URL: &str = "https://api.igdb.com/v4/games";
-        let _res = self
+        let res = self
             .request_with_retry(|client, token| async move {
                 client
                     .post(URL)
@@ -31,6 +42,8 @@ impl IgdbApiClient {
             })
             .await
             .map_err(|e| e.to_string())?;
+
+        dbg!(res);
 
         Ok(())
     }

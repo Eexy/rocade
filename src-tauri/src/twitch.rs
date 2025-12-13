@@ -24,6 +24,10 @@ impl TwitchApiClient {
         };
     }
 
+    pub fn get_client_id(&self) -> String {
+        self.client_id.clone()
+    }
+
     pub async fn refresh_access_token(&mut self) -> Result<String, String> {
         let url = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&grant_type=client_credentials", self.client_id, self.client_secret);
         let res = self

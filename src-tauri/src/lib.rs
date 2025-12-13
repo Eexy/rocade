@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use tauri::{ Manager};
 
-use crate::{steam::{SteamApiClient, SteamState}, twitch::TwitchApiClient};
+use crate::{igdb::IgdbApiClient, steam::{SteamApiClient, SteamState}, twitch::TwitchApiClient};
 
 mod dotenv;
 mod steam;
@@ -53,9 +53,10 @@ pub fn run() {
                 (Some(client_id), Some(client_secret)) => {
                     let handle = app.handle();
                     tauri::async_runtime::block_on(async move {
-                        let mut twitch_api_client = TwitchApiClient::new(client_id.clone(), client_secret.clone());
-                        twitch_api_client.refresh_access_token().await.expect("unable to get twitch access token");
-                        handle.manage::<TwitchApiClient>(twitch_api_client);
+                        let twitch_api_client = TwitchApiClient::new(client_id.clone(), client_secret.clone());
+                        let mut igdb_api_client = IgdbApiClient::new(twitch_api_client);
+                        let _ = igdb_api_client.get_games().await;
+                        handle.manage::<IgdbApiClient>(igdb_api_client);
                     });
                 },
                 _ => {
@@ -74,8 +75,6 @@ pub fn run() {
                 dbg!(steam_state);
                 let steam_api_client = app.state::<SteamApiClient>();
                 dbg!(steam_api_client);
-                let twitch_api_client = app.state::<TwitchApiClient>();
-                dbg!(&twitch_api_client);
             }
 
             Ok(())
