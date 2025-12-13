@@ -4,6 +4,7 @@ use crate::twitch::TwitchApiClient;
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
 use tauri_plugin_http::reqwest::{Client, Response};
 
+#[derive(Debug)]
 pub struct IgdbApiClient {
     twitch_client: TwitchApiClient,
     client: Client,

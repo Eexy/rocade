@@ -55,7 +55,6 @@ pub fn run() {
                     tauri::async_runtime::block_on(async move {
                         let twitch_api_client = TwitchApiClient::new(client_id.clone(), client_secret.clone());
                         let mut igdb_api_client = IgdbApiClient::new(twitch_api_client);
-                        let _ = igdb_api_client.get_games().await;
                         handle.manage::<IgdbApiClient>(igdb_api_client);
                     });
                 },
@@ -75,6 +74,8 @@ pub fn run() {
                 dbg!(steam_state);
                 let steam_api_client = app.state::<SteamApiClient>();
                 dbg!(steam_api_client);
+                let igdb_api_client = app.state::<IgdbApiClient>();
+                dbg!(igdb_api_client);
             }
 
             Ok(())
