@@ -6,7 +6,6 @@ pub struct TwitchApiClient {
     client_id: String,
     client_secret: String,
     access_token: Option<String>,
-    refresh_token: Option<String>,
     client: Client,
 }
 
@@ -21,7 +20,6 @@ impl TwitchApiClient {
             client_id,
             client_secret,
             access_token: None,
-            refresh_token: None,
             client: tauri_plugin_http::reqwest::Client::new(),
         };
     }
