@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::HashMap;
 
-use tauri::{async_runtime::Mutex, Manager};
+use tauri::{ Manager};
 
 use crate::{steam::{SteamApiClient, SteamState}, twitch::TwitchApiClient};
 
