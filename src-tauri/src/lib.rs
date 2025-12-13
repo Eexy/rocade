@@ -8,6 +8,7 @@ use crate::{steam::{SteamApiClient, SteamState}, twitch::TwitchApiClient};
 mod dotenv;
 mod steam;
 mod twitch;
+mod igdb;
 mod game;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
