@@ -43,7 +43,9 @@ impl IgdbApiClient {
             .await
             .map_err(|e| e.to_string())?;
 
-        dbg!(res);
+        let body = res.text().await.map_err(|e| e.to_string())?;
+
+        dbg!(body);
 
         Ok(())
     }
