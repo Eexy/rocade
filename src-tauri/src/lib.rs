@@ -53,7 +53,7 @@ pub fn run() {
                     let handle = app.handle();
                     tauri::async_runtime::block_on(async move {
                         let mut twitch_api_client = TwitchApiClient::new(client_id.clone(), client_secret.clone());
-                        twitch_api_client.auth().await.expect("unable to get twitch access token");
+                        twitch_api_client.refresh_access_token().await.expect("unable to get twitch access token");
                         handle.manage::<TwitchApiClient>(twitch_api_client);
                     });
                 },
