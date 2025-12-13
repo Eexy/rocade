@@ -51,35 +51,30 @@ impl IgdbApiClient {
         Ok(())
     }
 
+    async fn get_twitch_access_token(&mut self) -> Result<String, String> {
+        match self.twitch_client.get_access_token() {
+            Some(token) => Ok(token),
+            None => self.twitch_client.refresh_access_token().await,
+        }
+    }
+
     async fn request_with_retry<F, Fut>(&mut self, request_fn: F) -> Result<Response, String>
     where
         F: Fn(Client, String) -> Fut,
         Fut: Future<Output = Result<Response, String>>,
     {
-        let token = match self.twitch_client.get_access_token() {
-            Some(t) => t,
-            None => {
-                let t = self
-                    .twitch_client
-                    .refresh_access_token()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                t
-            }
-        };
+        let token = self
+            .get_twitch_access_token()
+            .await
+            .map_err(|e| e.to_string())?;
 
         let response = request_fn(self.client.clone(), token).await?;
 
-        match response.status() {
-            StatusCode::UNAUTHORIZED => {
-                self.twitch_client.refresh_access_token().await?;
-
-                match self.twitch_client.get_access_token() {
-                    Some(new_token) => request_fn(self.client.clone(), new_token).await,
-                    None => Err("unable to make request. missing auth".to_string()),
-                }
-            }
-            _ => Ok(response),
+        if response.status() == StatusCode::UNAUTHORIZED {
+            let new_token = self.twitch_client.refresh_access_token().await?;
+            request_fn(self.client.clone(), new_token).await
+        } else {
+            Ok(response)
         }
     }
 }
