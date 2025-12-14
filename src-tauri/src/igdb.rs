@@ -106,8 +106,6 @@ impl IgdbApiClient {
 
         let body = res.text().await.map_err(|e| e.to_string())?;
 
-        dbg!(&body);
-
         let mut parsed =
             serde_json::from_str::<Vec<IgdbGameInfo>>(&body).map_err(|e| e.to_string())?;
 
