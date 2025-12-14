@@ -1,15 +1,19 @@
 use core::panic;
 use std::collections::HashMap;
 
-use tauri::{ Manager};
+use tauri::{async_runtime::Mutex, Manager};
 
-use crate::{igdb::IgdbApiClient, steam::{SteamApiClient, SteamState}, twitch::TwitchApiClient};
+use crate::{
+    igdb::IgdbApiClient,
+    steam::{SteamApiClient, SteamState},
+    twitch::TwitchApiClient,
+};
 
 mod dotenv;
+mod game;
+mod igdb;
 mod steam;
 mod twitch;
-mod igdb;
-mod game;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -51,37 +55,19 @@ pub fn run() {
 
             match (app_config.get("TWITCH_CLIENT_ID"), app_config.get("TWITCH_CLIENT_SECRET")) {
                 (Some(client_id), Some(client_secret)) => {
-                    let handle = app.handle();
-                    tauri::async_runtime::block_on(async move {
                         let twitch_api_client = TwitchApiClient::new(client_id.clone(), client_secret.clone());
-                        let mut igdb_api_client = IgdbApiClient::new(twitch_api_client);
-                        handle.manage::<IgdbApiClient>(igdb_api_client);
-                    });
+                        let  igdb_api_client = Mutex::new(IgdbApiClient::new(twitch_api_client)) ;
+                        app.manage::<Mutex<IgdbApiClient>>(igdb_api_client);
                 },
                 _ => {
                     panic!("Unable to load twitch config. Missing TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET in dotenv file")
                 }
             }
 
-            
-
-            
-            #[cfg(debug_assertions)]
-            {
-                let app_config = app.state::<HashMap<String, String>>();
-                dbg!(app_config);
-                let steam_state = app.state::<SteamState>();
-                dbg!(steam_state);
-                let steam_api_client = app.state::<SteamApiClient>();
-                dbg!(steam_api_client);
-                let igdb_api_client = app.state::<IgdbApiClient>();
-                dbg!(igdb_api_client);
-            }
-
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![game::get_games])
+        .invoke_handler(tauri::generate_handler![game::get_games, game::get_game])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
