@@ -11,9 +11,11 @@ pub struct IgdbApiClient {
     client: Client,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGame {
     name: String,
+    artworks: Vec<u64>,
+    genres: Vec<u64>,
 }
 
 impl IgdbApiClient {
@@ -50,25 +52,23 @@ impl IgdbApiClient {
             .await
             .map_err(|e| e.to_string())?;
 
-        let body = res.text().await.map_err(|e| e.to_string())?;
-
-        dbg!(body);
+        let _ = res.text().await.map_err(|e| e.to_string())?;
 
         Ok(())
     }
 
-    pub async fn get_game(&mut self, game_name: String) -> Result<String, String> {
-        let _ = self
+    pub async fn get_game(&mut self, game_name: String) -> Result<IgdbGame, String> {
+        let game = self
             .get_game_info(game_name.clone())
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string());
 
-        Ok(game_name)
+        game
     }
 
     async fn get_game_info(&mut self, name: String) -> Result<IgdbGame, String> {
         const URL: &str = "https://api.igdb.com/v4/games";
-        let query = format!("fiels *; where name = '{}'", name);
+        let query = format!("fields *; where name = \"{}\"; limit 1;", name);
         let res = self
             .request_with_retry(|client, token| {
                 let value = query.clone();
@@ -87,9 +87,12 @@ impl IgdbApiClient {
 
         let body = res.text().await.map_err(|e| e.to_string())?;
 
-        dbg!(body);
+        let mut parsed = serde_json::from_str::<Vec<IgdbGame>>(&body).map_err(|e| e.to_string())?;
 
-        Ok(IgdbGame { name })
+        match parsed.pop() {
+            Some(game) => Ok(game),
+            None => Err("Unable to find game".to_string()),
+        }
     }
 
     async fn get_twitch_access_token(&mut self) -> Result<String, String> {
