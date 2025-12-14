@@ -16,6 +16,8 @@ pub struct IgdbGame {
     name: String,
     artworks: Vec<u64>,
     genres: Vec<u64>,
+    storyline: Option<String>,
+    summary: Option<String>,
 }
 
 impl IgdbApiClient {
