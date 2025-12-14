@@ -4,3 +4,20 @@ export type Game = {
     img_icon_url?: string,
     img_logo_url?: string,
 }
+
+export type GameInfo = {
+    name: String,
+    cover: GameCover[],
+    genres: GameGenre[],
+    storyline?: string,
+    summary?: string,
+
+}
+
+export type GameGenre = {
+    name: string
+}
+
+export type GameCover = {
+    image_id: string
+}
