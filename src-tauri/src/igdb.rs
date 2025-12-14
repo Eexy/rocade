@@ -169,8 +169,6 @@ impl IgdbApiClient {
 
         let body = res.text().await.map_err(|e| e.to_string())?;
 
-        dbg!(&body);
-
         let parsed = serde_json::from_str::<Vec<IgdbCover>>(&body).map_err(|e| e.to_string())?;
 
         Ok(parsed)
