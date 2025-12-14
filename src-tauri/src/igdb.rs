@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use crate::twitch::TwitchApiClient;
+use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
 use tauri_plugin_http::reqwest::{Client, Response};
 
@@ -8,6 +9,11 @@ use tauri_plugin_http::reqwest::{Client, Response};
 pub struct IgdbApiClient {
     twitch_client: TwitchApiClient,
     client: Client,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct IgdbGame {
+    name: String,
 }
 
 impl IgdbApiClient {
@@ -49,6 +55,41 @@ impl IgdbApiClient {
         dbg!(body);
 
         Ok(())
+    }
+
+    pub async fn get_game(&mut self, game_name: String) -> Result<String, String> {
+        let _ = self
+            .get_game_info(game_name.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(game_name)
+    }
+
+    async fn get_game_info(&mut self, name: String) -> Result<IgdbGame, String> {
+        const URL: &str = "https://api.igdb.com/v4/games";
+        let query = format!("fiels *; where name = '{}'", name);
+        let res = self
+            .request_with_retry(|client, token| {
+                let value = query.clone();
+                async move {
+                    client
+                        .post(URL)
+                        .bearer_auth(token)
+                        .body(value)
+                        .send()
+                        .await
+                        .map_err(|e| e.to_string())
+                }
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let body = res.text().await.map_err(|e| e.to_string())?;
+
+        dbg!(body);
+
+        Ok(IgdbGame { name })
     }
 
     async fn get_twitch_access_token(&mut self) -> Result<String, String> {
