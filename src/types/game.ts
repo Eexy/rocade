@@ -7,7 +7,7 @@ export type Game = {
 
 export type GameInfo = {
     name: String,
-    cover: GameCover[],
+    covers: GameCover[],
     genres: GameGenre[],
     storyline?: string,
     summary?: string,
