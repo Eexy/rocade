@@ -58,26 +58,6 @@ impl IgdbApiClient {
         };
     }
 
-    pub async fn get_games(&mut self) -> Result<(), String> {
-        const URL: &str = "https://api.igdb.com/v4/games";
-        let res = self
-            .request_with_retry(|client, token| async move {
-                client
-                    .post(URL)
-                    .bearer_auth(token)
-                    .body("fields *;".to_string())
-                    .send()
-                    .await
-                    .map_err(|e| e.to_string())
-            })
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let _ = res.text().await.map_err(|e| e.to_string())?;
-
-        Ok(())
-    }
-
     pub async fn get_game(&mut self, game_name: String) -> Result<IgdbGame, String> {
         let game_info = self
             .get_game_info(game_name.clone())
