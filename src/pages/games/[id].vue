@@ -38,7 +38,7 @@ watch(() => id, async () => {
     if (!game) return
 
     try {
-        const res: GameInfo = await invoke('get_game', { name: game.name })
+        const res: GameInfo = await invoke('get_game', { steamGameId: game.appid })
         currentGame.value = res
     } catch (e) {
         console.error(e)

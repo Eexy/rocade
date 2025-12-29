@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use crate::twitch::TwitchApiClient;
+use crate::{igdb, steam, twitch::TwitchApiClient};
 use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
 use tauri_plugin_http::reqwest::{Client, Response};
@@ -39,6 +39,11 @@ pub struct IgdbApiClient {
     client: Client,
 }
 
+#[derive(Deserialize)]
+pub struct IgdbAlternativeGame {
+    game: i64,
+}
+
 impl IgdbApiClient {
     pub fn new(twitch_client: TwitchApiClient) -> Self {
         let mut headers = HeaderMap::new();
@@ -58,11 +63,16 @@ impl IgdbApiClient {
         };
     }
 
-    pub async fn get_game(&mut self, game_name: String) -> Result<IgdbGame, String> {
-        let game_info = match self.get_game_info(game_name.clone()).await {
-            Ok(info) => info,
-            Err(_) => self.search_game(game_name.clone()).await?,
-        };
+    pub async fn get_game(&mut self, steam_game_id: i64) -> Result<IgdbGame, String> {
+        let steam_game = self
+            .get_steam_game(steam_game_id)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let game_info = self
+            .get_game_info(steam_game.game)
+            .await
+            .map_err(|e| e.to_string())?;
 
         let game_genres = self
             .get_game_genres(game_info.genres)
@@ -85,9 +95,45 @@ impl IgdbApiClient {
         Ok(game)
     }
 
+    async fn get_steam_game(&mut self, game_id: i64) -> Result<IgdbAlternativeGame, String> {
+        const URL: &str = "https://api.igdb.com/v4/external_games";
+        let query = format!(
+            "fields *;  where external_game_source = 1 & url = \"https://store.steampowered.com/app/{}\"; limit 1;",
+            game_id
+        );
+        let res = self
+            .request_with_retry(|client, token| {
+                let value = query.clone();
+                async move {
+                    client
+                        .post(URL)
+                        .bearer_auth(token)
+                        .body(value)
+                        .send()
+                        .await
+                        .map_err(|e| e.to_string())
+                }
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let body = res.text().await.map_err(|e| e.to_string())?;
+
+        let mut parsed =
+            serde_json::from_str::<Vec<IgdbAlternativeGame>>(&body).map_err(|e| e.to_string())?;
+
+        match parsed.pop() {
+            Some(game) => Ok(game),
+            None => Err("Unable to find game".to_string()),
+        }
+    }
+
     async fn search_game(&mut self, game_name: String) -> Result<IgdbGameInfo, String> {
         const URL: &str = "https://api.igdb.com/v4/games";
-        let query = format!("fields *; search \"{}\"; limit 1;", game_name);
+        let query = format!(
+            "fields *; search \"{}\"; where game.platforms = 6; limit 1;",
+            game_name
+        );
         let res = self
             .request_with_retry(|client, token| {
                 let value = query.clone();
@@ -115,9 +161,9 @@ impl IgdbApiClient {
         }
     }
 
-    async fn get_game_info(&mut self, name: String) -> Result<IgdbGameInfo, String> {
+    async fn get_game_info(&mut self, igdb_game_id: i64) -> Result<IgdbGameInfo, String> {
         const URL: &str = "https://api.igdb.com/v4/games";
-        let query = format!("fields *; where name = \"{}\"; limit 1;", name);
+        let query = format!("fields *; where id = {}; limit 1;", igdb_game_id);
         let res = self
             .request_with_retry(|client, token| {
                 let value = query.clone();
