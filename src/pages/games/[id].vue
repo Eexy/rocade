@@ -7,7 +7,7 @@
         <div class="flex gap-1">
             <Badge v-for="genre in currentGame.genres" :key="genre.name">{{ genre.name }}</Badge>
         </div>
-        <p>{{ currentGame.storyline }}</p>
+        <p>{{ currentGame.summary }}</p>
     </div>
 </template>
 
