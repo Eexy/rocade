@@ -59,10 +59,10 @@ impl IgdbApiClient {
     }
 
     pub async fn get_game(&mut self, game_name: String) -> Result<IgdbGame, String> {
-        let game_info = self
-            .get_game_info(game_name.clone())
-            .await
-            .map_err(|e| e.to_string())?;
+        let game_info = match self.get_game_info(game_name.clone()).await {
+            Ok(info) => info,
+            Err(_) => self.search_game(game_name.clone()).await?,
+        };
 
         let game_genres = self
             .get_game_genres(game_info.genres)
@@ -83,6 +83,36 @@ impl IgdbApiClient {
         };
 
         Ok(game)
+    }
+
+    async fn search_game(&mut self, game_name: String) -> Result<IgdbGameInfo, String> {
+        const URL: &str = "https://api.igdb.com/v4/games";
+        let query = format!("fields *; search \"{}\"; limit 1;", game_name);
+        let res = self
+            .request_with_retry(|client, token| {
+                let value = query.clone();
+                async move {
+                    client
+                        .post(URL)
+                        .bearer_auth(token)
+                        .body(value)
+                        .send()
+                        .await
+                        .map_err(|e| e.to_string())
+                }
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let body = res.text().await.map_err(|e| e.to_string())?;
+
+        let mut parsed =
+            serde_json::from_str::<Vec<IgdbGameInfo>>(&body).map_err(|e| e.to_string())?;
+
+        match parsed.pop() {
+            Some(game) => Ok(game),
+            None => Err("Unable to find game".to_string()),
+        }
     }
 
     async fn get_game_info(&mut self, name: String) -> Result<IgdbGameInfo, String> {
