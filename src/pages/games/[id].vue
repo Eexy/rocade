@@ -29,8 +29,8 @@ const currentGame = ref<GameInfo | null>(null)
 const coverUrl = computed(() => {
     if (!currentGame.value) return null
 
-    if (!currentGame.value.covers[0]) return null
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.covers[0].image_id}.jpg`
+    if (!currentGame.value.cover) return null
+    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.cover.image_id}.jpg`
 })
 
 watch(() => id, async () => {
