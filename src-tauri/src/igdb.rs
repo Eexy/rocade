@@ -1,6 +1,4 @@
-use std::future::Future;
-
-use crate::{game, igdb, steam, twitch::TwitchApiClient};
+use crate::twitch::TwitchApiClient;
 use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
 use tauri_plugin_http::reqwest::{Client, Response};
@@ -92,18 +90,7 @@ impl IgdbApiClient {
             game_id
         );
         let res = self
-            .request_with_retry(|client, token| {
-                let value = query.clone();
-                async move {
-                    client
-                        .post(URL)
-                        .bearer_auth(token)
-                        .body(value)
-                        .send()
-                        .await
-                        .map_err(|e| e.to_string())
-                }
-            })
+            .request_with_retry(URL, &query)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -125,18 +112,7 @@ impl IgdbApiClient {
             igdb_game_id
         );
         let res = self
-            .request_with_retry(|client, token| {
-                let value = query.clone();
-                async move {
-                    client
-                        .post(URL)
-                        .bearer_auth(token)
-                        .body(value)
-                        .send()
-                        .await
-                        .map_err(|e| e.to_string())
-                }
-            })
+            .request_with_retry(URL, &query)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -158,21 +134,30 @@ impl IgdbApiClient {
         }
     }
 
-    async fn request_with_retry<F, Fut>(&mut self, request_fn: F) -> Result<Response, String>
-    where
-        F: Fn(Client, String) -> Fut,
-        Fut: Future<Output = Result<Response, String>>,
-    {
+    async fn request_with_retry(&mut self, url: &str, query: &str) -> Result<Response, String> {
         let token = self
             .get_twitch_access_token()
             .await
             .map_err(|e| e.to_string())?;
 
-        let response = request_fn(self.client.clone(), token).await?;
+        let response = self
+            .client
+            .post(url)
+            .bearer_auth(&token)
+            .body(query.to_string())
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
 
         if response.status() == StatusCode::UNAUTHORIZED {
             let new_token = self.twitch_client.refresh_access_token().await?;
-            request_fn(self.client.clone(), new_token).await
+            self.client
+                .post(url)
+                .bearer_auth(&new_token)
+                .body(query.to_string())
+                .send()
+                .await
+                .map_err(|e| e.to_string())
         } else {
             Ok(response)
         }
