@@ -99,10 +99,7 @@ impl IgdbApiClient {
         let mut parsed =
             serde_json::from_str::<Vec<IgdbAlternativeGame>>(&body).map_err(|e| e.to_string())?;
 
-        match parsed.pop() {
-            Some(game) => Ok(game),
-            None => Err("Unable to find game".to_string()),
-        }
+        parsed.pop().ok_or("Unable to find game".to_string())
     }
 
     async fn get_game_info(&mut self, igdb_game_id: i64) -> Result<IgdbGameInfo, String> {
@@ -121,10 +118,7 @@ impl IgdbApiClient {
         let mut parsed =
             serde_json::from_str::<Vec<IgdbGameInfo>>(&body).map_err(|e| e.to_string())?;
 
-        match parsed.pop() {
-            Some(game) => Ok(game),
-            None => Err("Unable to find game".to_string()),
-        }
+        parsed.pop().ok_or("Unable to find game".to_string())
     }
 
     async fn get_twitch_access_token(&mut self) -> Result<String, String> {
