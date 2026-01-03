@@ -25,9 +25,7 @@ pub async fn get_games(
                 let client = igdb_client.clone();
                 async move {
                     let mut lock_client = client.lock().await;
-                    let res = lock_client.get_game(appid).await;
-                    dbg!(&res);
-                    res
+                    lock_client.get_game(appid).await
                 }
             })
             .buffer_unordered(4)
