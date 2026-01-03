@@ -11,14 +11,6 @@ impl SteamState {
     pub fn new(key: String, profile_id: String) -> Self {
         return SteamState { key, profile_id };
     }
-
-    pub fn get_key(&self) -> &String {
-        &self.key
-    }
-
-    pub fn get_profile_id(&self) -> &String {
-        &self.profile_id
-    }
 }
 
 #[derive(Debug)]
