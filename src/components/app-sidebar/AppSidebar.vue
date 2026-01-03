@@ -5,12 +5,8 @@
         </SidebarHeader>
         <SidebarContent>
             <ul>
-                <RouterLink v-for="game in filteredGames" :key="game.appid" :to="`/games/${game.appid}`">
-                    <li class="flex gap-2 items-center">
-                        <img :src="`http://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg`"
-                            class="size-9" />
-                        {{ game.name }}
-                    </li>
+                <RouterLink v-for="game in filteredGames" :to="`/games/${game.name}`">
+                    <GameSidebarItem :game="game"></GameSidebarItem>
                 </RouterLink>
             </ul>
         </SidebarContent>
@@ -22,6 +18,7 @@ import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
 import { Sidebar, SidebarContent, SidebarHeader } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
+import GameSidebarItem from "@/components/app-sidebar/game-sidebar-item/GameSidebarItem.vue";
 
 const { filteredGames, search } = storeToRefs(useGameStore())
 

@@ -1,9 +1,9 @@
-import { Game } from "@/types/game";
+import { Game, GameInfo } from "@/types/game";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
 export const useGameStore = defineStore('game', () => {
-    const games = ref<Game[]>([]);
+    const games = ref<GameInfo[]>([]);
     const search = ref("");
 
     const filteredGames = computed(() => {
