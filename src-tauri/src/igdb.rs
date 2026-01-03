@@ -63,7 +63,7 @@ impl IgdbApiClient {
         };
     }
 
-    pub async fn get_game(&mut self, steam_game_id: i64) -> Result<IgdbGame, String> {
+    pub async fn get_game(&mut self, steam_game_id: u64) -> Result<IgdbGame, String> {
         let steam_game = self
             .get_steam_game(steam_game_id)
             .await
@@ -86,7 +86,7 @@ impl IgdbApiClient {
         Ok(game)
     }
 
-    async fn get_steam_game(&mut self, game_id: i64) -> Result<IgdbAlternativeGame, String> {
+    async fn get_steam_game(&mut self, game_id: u64) -> Result<IgdbAlternativeGame, String> {
         const URL: &str = "https://api.igdb.com/v4/external_games";
         let query = format!(
             "fields *;  where external_game_source = 1 & url = \"https://store.steampowered.com/app/{}\"; limit 1;",

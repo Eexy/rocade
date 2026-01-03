@@ -30,7 +30,7 @@ pub struct SteamApiClient {
 
 #[derive(Serialize, Deserialize)]
 pub struct Game {
-    appid: u64,
+    pub appid: u64,
     name: String,
     playtime_2weeks: Option<u64>,
     playtime_forever: Option<u64>,
