@@ -17,17 +17,18 @@
 <script setup lang="ts">
 import Badge from '@/components/ui/badge/Badge.vue';
 import { useGameStore } from '@/stores/game.store';
-import { GameInfo } from '@/types/game';
-import { invoke } from '@tauri-apps/api/core';
 import { storeToRefs } from 'pinia';
-import { computed, watch, ref } from 'vue';
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute('/games/[id]');
 const id = computed(() => Number(route.params.id))
 
 const { games } = storeToRefs(useGameStore())
-const currentGame = ref<GameInfo | null>(null)
+
+const currentGame = computed(() => {
+    return games.value.find(game => game.id === id.value)
+})
 
 const coverUrl = computed(() => {
     if (!currentGame.value) return null
@@ -45,17 +46,6 @@ const artworkUrl = computed(() => {
 })
 
 
-watch(() => id, async () => {
-    const game = games.value.find(g => g.appid === id.value)
-    if (!game) return
-
-    try {
-        const res: GameInfo = await invoke('get_game', { steamGameId: game.appid })
-        currentGame.value = res
-    } catch (e) {
-        console.error(e)
-    }
-}, { immediate: true, deep: true })
 
 
 </script>

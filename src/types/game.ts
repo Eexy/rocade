@@ -6,6 +6,7 @@ export type Game = {
 }
 
 export type GameInfo = {
+    id: number,
     name: String,
     cover: GameImage,
     artworks: GameImage[],

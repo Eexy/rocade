@@ -1,4 +1,4 @@
-import { Game, GameInfo } from "@/types/game";
+import { GameInfo } from "@/types/game";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 

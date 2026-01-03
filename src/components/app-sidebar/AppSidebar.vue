@@ -5,7 +5,7 @@
         </SidebarHeader>
         <SidebarContent>
             <ul>
-                <RouterLink v-for="game in filteredGames" :to="`/games/${game.name}`">
+                <RouterLink v-for="game in filteredGames" :key="game.id" :to="`/games/${game.id}`">
                     <GameSidebarItem :game="game"></GameSidebarItem>
                 </RouterLink>
             </ul>
