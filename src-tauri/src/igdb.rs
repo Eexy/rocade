@@ -15,6 +15,7 @@ pub struct IgdbImage {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGameInfo {
+    id: u64,
     name: String,
     cover: IgdbImage,
     genres: Vec<IgdbGenre>,
@@ -25,6 +26,7 @@ pub struct IgdbGameInfo {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGame {
+    id: u64,
     name: String,
     storyline: Option<String>,
     summary: Option<String>,
@@ -81,6 +83,7 @@ impl IgdbApiClient {
             genres: game_info.genres,
             cover: game_info.cover,
             artworks: game_info.artworks,
+            id: game_info.id,
         };
 
         Ok(game)
