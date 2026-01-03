@@ -20,6 +20,7 @@ pub struct IgdbGameInfo {
     genres: Vec<IgdbGenre>,
     storyline: Option<String>,
     summary: Option<String>,
+    artworks: Vec<IgdbCover>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,6 +30,7 @@ pub struct IgdbGame {
     summary: Option<String>,
     genres: Vec<IgdbGenre>,
     cover: IgdbCover,
+    artworks: Vec<IgdbCover>,
 }
 
 #[derive(Debug)]
@@ -78,6 +80,7 @@ impl IgdbApiClient {
             storyline: game_info.storyline,
             genres: game_info.genres,
             cover: game_info.cover,
+            artworks: game_info.artworks,
         };
 
         Ok(game)
@@ -105,7 +108,7 @@ impl IgdbApiClient {
     async fn get_game_info(&mut self, igdb_game_id: i64) -> Result<IgdbGameInfo, String> {
         const URL: &str = "https://api.igdb.com/v4/games";
         let query = format!(
-            "fields *, genres.name, cover.image_id; where id = {}; limit 1;",
+            "fields *, genres.name, artworks.image_id, cover.image_id; where id = {}; limit 1;",
             igdb_game_id
         );
         let res = self

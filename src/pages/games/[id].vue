@@ -1,6 +1,9 @@
 <template>
     <div v-if="currentGame" class="flex flex-col gap-4 p-2">
         <div>
+            <img v-if="artworkUrl" :src="artworkUrl" class="rounded-sm" />
+        </div>
+        <div>
             <img v-if="coverUrl" :src="coverUrl" class="rounded-sm" />
         </div>
         <h1 class="text-3xl font-semibold">{{ currentGame.name }}</h1>
@@ -32,6 +35,15 @@ const coverUrl = computed(() => {
     if (!currentGame.value.cover) return null
     return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.cover.image_id}.jpg`
 })
+
+
+const artworkUrl = computed(() => {
+    if (!currentGame.value) return null
+
+    if (!currentGame.value.artworks[0]) return null
+    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.artworks[0].image_id}.jpg`
+})
+
 
 watch(() => id, async () => {
     const game = games.value.find(g => g.appid === id.value)
