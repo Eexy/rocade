@@ -7,8 +7,8 @@ export type Game = {
 
 export type GameInfo = {
     name: String,
-    cover: GameCover,
-    artworks: GameCover[],
+    cover: GameImage,
+    artworks: GameImage[],
     genres: GameGenre[],
     storyline?: string,
     summary?: string,
@@ -19,6 +19,6 @@ export type GameGenre = {
     name: string
 }
 
-export type GameCover = {
+export type GameImage = {
     image_id: string
 }
