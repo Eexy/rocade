@@ -9,18 +9,18 @@ pub struct IgdbGenre {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct IgdbCover {
+pub struct IgdbImage {
     image_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGameInfo {
     name: String,
-    cover: IgdbCover,
+    cover: IgdbImage,
     genres: Vec<IgdbGenre>,
     storyline: Option<String>,
     summary: Option<String>,
-    artworks: Vec<IgdbCover>,
+    artworks: Vec<IgdbImage>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,8 +29,8 @@ pub struct IgdbGame {
     storyline: Option<String>,
     summary: Option<String>,
     genres: Vec<IgdbGenre>,
-    cover: IgdbCover,
-    artworks: Vec<IgdbCover>,
+    cover: IgdbImage,
+    artworks: Vec<IgdbImage>,
 }
 
 #[derive(Debug)]
