@@ -1,16 +1,16 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{collections::HashMap, env};
 
 use tauri::{async_runtime::Mutex, Manager};
 
 use crate::{
+    db::DatabaseState,
     igdb::IgdbApiClient,
     steam::{SteamApiClient, SteamState},
     twitch::TwitchApiClient,
 };
 
 mod db;
-mod dotenv;
 mod game;
 mod igdb;
 mod steam;
@@ -28,18 +28,26 @@ pub fn run() {
                 window.close_devtools();
             }
 
-            let config = dotenv::dotenv();
+             dotenvy::dotenv().ok();
 
-            match config {
-                Ok(c) => {
-                    app.manage::<HashMap<String, String>>(c);
-                }
-                Err(_) => {
-                    panic!("unable to read config");
-                }
+            let mut config = HashMap::new();
+
+            for (key, val) in env::vars() {
+                config.insert(key, val);
             }
 
+            app.manage::<HashMap<String, String>>(config);
+
+
             let app_config = app.state::<HashMap<String, String>>();
+
+
+            tauri::async_runtime::block_on(  async {
+                let handle = app.app_handle();
+               let db_state = db::DatabaseState::new(handle).await.expect("unable to init local db");
+                app.manage::<DatabaseState>(db_state)
+            });
+
 
             match (app_config.get("STEAM_API_KEY"), app_config.get("STEAM_PROFILE_ID")) {
                 (Some(key), Some(profile_id)) => {
@@ -64,17 +72,6 @@ pub fn run() {
                     panic!("Unable to load twitch config. Missing TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET in dotenv file")
                 }
             }
-
-            tauri::async_runtime::block_on(  async {
-                let handle = app.app_handle();
-                let db_state = db::DatabaseState::new(&handle).await;
-                match db_state {
-                    Some(state) => {
-                        app.manage(state);
-                    },
-                    None => {}
-                }
-            });
 
             Ok(())
         })

@@ -1,6 +1,6 @@
 use std::fs;
 
-use sqlx::{Pool, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
 use tauri::{AppHandle, Manager};
 
 pub struct DatabaseState {
@@ -17,9 +17,16 @@ impl DatabaseState {
         fs::create_dir_all(&app_dir).expect("unable to create app directory");
 
         let db_path = app_dir.join("rocade.db");
+        dbg!(&db_path);
         let db_url = format!("sqlite:{}", db_path.display());
+        dbg!(&db_url);
 
-        let pool = SqlitePool::connect(&db_url).await?;
+        let connexion = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+
+        let pool = SqlitePool::connect_with(connexion).await?;
 
         Ok(Self { pool: pool })
     }
