@@ -9,6 +9,7 @@ use crate::{
     twitch::TwitchApiClient,
 };
 
+mod db;
 mod dotenv;
 mod game;
 mod igdb;
@@ -63,6 +64,17 @@ pub fn run() {
                     panic!("Unable to load twitch config. Missing TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET in dotenv file")
                 }
             }
+
+            tauri::async_runtime::block_on(  async {
+                let handle = app.app_handle();
+                let db_state = db::DatabaseState::new(&handle).await;
+                match db_state {
+                    Some(state) => {
+                        app.manage(state);
+                    },
+                    None => {}
+                }
+            });
 
             Ok(())
         })
