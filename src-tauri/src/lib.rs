@@ -38,9 +38,7 @@ pub fn run() {
 
             app.manage::<HashMap<String, String>>(config);
 
-
             let app_config = app.state::<HashMap<String, String>>();
-
 
             tauri::async_runtime::block_on(  async {
                 let handle = app.app_handle();
