@@ -1,8 +1,4 @@
-use std::time::Duration;
-
-use futures::{stream, StreamExt};
 use tauri::{async_runtime::Mutex, State};
-use tokio::time::sleep;
 
 use crate::{
     igdb::{IgdbApiClient, IgdbGame},
@@ -15,30 +11,13 @@ pub async fn get_games(
     igdb_client: State<'_, Mutex<IgdbApiClient>>,
 ) -> Result<Vec<IgdbGame>, String> {
     let games_res = steam_client.get_games().await.map_err(|e| e.to_string())?;
-    let mut igdb_games = Vec::new();
+    let mut locked_client = igdb_client.lock().await;
 
-    for chunk in games_res.chunks(4) {
-        let appids: Vec<u64> = chunk.iter().map(|game| game.appid).collect();
+    let res = locked_client
+        .get_games(games_res.iter().map(|game| game.appid).collect())
+        .await?;
 
-        let results: Vec<_> = stream::iter(appids)
-            .map(|appid| {
-                let client = igdb_client.clone();
-                async move {
-                    let mut lock_client = client.lock().await;
-                    lock_client.get_game(appid).await
-                }
-            })
-            .buffer_unordered(4)
-            .filter_map(|result| async move { result.ok() })
-            .collect()
-            .await;
-
-        igdb_games.extend(results);
-
-        sleep(Duration::from_secs(1)).await;
-    }
-
-    Ok(igdb_games)
+    Ok(res)
 }
 
 #[tauri::command]

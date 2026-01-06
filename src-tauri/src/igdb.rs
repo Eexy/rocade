@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use crate::twitch::TwitchApiClient;
 use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
@@ -21,7 +23,7 @@ pub struct IgdbGameInfo {
     genres: Vec<IgdbGenre>,
     storyline: Option<String>,
     summary: Option<String>,
-    artworks: Vec<IgdbImage>,
+    artworks: Option<Vec<IgdbImage>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,7 +34,7 @@ pub struct IgdbGame {
     summary: Option<String>,
     genres: Vec<IgdbGenre>,
     cover: IgdbImage,
-    artworks: Vec<IgdbImage>,
+    artworks: Option<Vec<IgdbImage>>,
 }
 
 #[derive(Debug)]
@@ -41,9 +43,9 @@ pub struct IgdbApiClient {
     client: Client,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct IgdbAlternativeGame {
-    game: i64,
+    game: u64,
 }
 
 impl IgdbApiClient {
@@ -89,6 +91,64 @@ impl IgdbApiClient {
         Ok(game)
     }
 
+    pub async fn get_games(&mut self, steam_game_id: Vec<u64>) -> Result<Vec<IgdbGame>, String> {
+        let steam_games = self
+            .get_steam_games(steam_game_id)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let games_infos = self
+            .get_games_infos(steam_games.iter().map(|game| game.game).collect())
+            .await?;
+
+        let parsed: Vec<_> = games_infos
+            .into_iter()
+            .map(|game| {
+                let parse_game = IgdbGame {
+                    name: game.name,
+                    summary: game.summary,
+                    storyline: game.storyline,
+                    genres: game.genres,
+                    cover: game.cover,
+                    artworks: game.artworks,
+                    id: game.id,
+                };
+
+                parse_game
+            })
+            .collect();
+        Ok(parsed)
+    }
+
+    async fn get_steam_games(
+        &mut self,
+        game_ids: Vec<u64>,
+    ) -> Result<Vec<IgdbAlternativeGame>, String> {
+        const URL: &str = "https://api.igdb.com/v4/external_games";
+        let steam_urls: Vec<_> = game_ids
+            .iter()
+            .map(|id| format!(r#""https://store.steampowered.com/app/{}""#, &id))
+            .collect();
+
+        let query = format!(
+            "fields *;  where external_game_source = 1 & url = ({}); limit {};",
+            steam_urls.join(","),
+            game_ids.len()
+        );
+
+        let res = self
+            .request_with_retry(URL, &query)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let body = res.text().await.map_err(|e| e.to_string())?;
+
+        let parsed =
+            serde_json::from_str::<Vec<IgdbAlternativeGame>>(&body).map_err(|e| e.to_string())?;
+
+        Ok(parsed)
+    }
+
     async fn get_steam_game(&mut self, game_id: u64) -> Result<IgdbAlternativeGame, String> {
         const URL: &str = "https://api.igdb.com/v4/external_games";
         let query = format!(
@@ -108,7 +168,7 @@ impl IgdbApiClient {
         parsed.pop().ok_or("Unable to find game".to_string())
     }
 
-    async fn get_game_info(&mut self, igdb_game_id: i64) -> Result<IgdbGameInfo, String> {
+    async fn get_game_info(&mut self, igdb_game_id: u64) -> Result<IgdbGameInfo, String> {
         const URL: &str = "https://api.igdb.com/v4/games";
         let query = format!(
             "fields *, genres.name, artworks.image_id, cover.image_id; where id = {}; limit 1;",
@@ -125,6 +185,30 @@ impl IgdbApiClient {
             serde_json::from_str::<Vec<IgdbGameInfo>>(&body).map_err(|e| e.to_string())?;
 
         parsed.pop().ok_or("Unable to find game".to_string())
+    }
+
+    async fn get_games_infos(
+        &mut self,
+        igdb_game_ids: Vec<u64>,
+    ) -> Result<Vec<IgdbGameInfo>, String> {
+        const URL: &str = "https://api.igdb.com/v4/games";
+        let ids: Vec<_> = igdb_game_ids.iter().map(|id| id.to_string()).collect();
+        let query = format!(
+            r#"fields *, genres.name, artworks.image_id, cover.image_id; where id = ({}); limit {};"#,
+            ids.join(","),
+            igdb_game_ids.len()
+        );
+
+        let res = self
+            .request_with_retry(URL, &query)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let body = res.text().await.map_err(|e| e.to_string())?;
+
+        let parsed = serde_json::from_str::<Vec<IgdbGameInfo>>(&body).map_err(|e| e.to_string())?;
+
+        Ok(parsed)
     }
 
     async fn get_twitch_access_token(&mut self) -> Result<String, String> {
