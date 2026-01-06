@@ -29,9 +29,9 @@ pub struct IgdbGameInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGame {
     id: u64,
-    name: String,
+    pub name: String,
     storyline: Option<String>,
-    summary: Option<String>,
+    pub summary: Option<String>,
     genres: Vec<IgdbGenre>,
     cover: IgdbImage,
     artworks: Option<Vec<IgdbImage>>,
