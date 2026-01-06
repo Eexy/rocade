@@ -21,7 +21,7 @@ pub struct SteamApiClient {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Game {
+pub struct SteamGame {
     pub appid: u64,
     name: String,
     playtime_2weeks: Option<u64>,
@@ -33,7 +33,7 @@ pub struct Game {
 #[derive(Serialize, Deserialize)]
 pub struct GameList {
     game_count: u64,
-    games: Vec<Game>,
+    games: Vec<SteamGame>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -50,7 +50,7 @@ impl SteamApiClient {
         }
     }
 
-    pub async fn get_games(&self) -> Result<Vec<Game>, String> {
+    pub async fn get_games(&self) -> Result<Vec<SteamGame>, String> {
         let url = format!("http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={}&steamid={}&include_appinfo=1&format=json", self.key, self.profile_id);
         let res = self
             .client
