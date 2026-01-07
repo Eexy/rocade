@@ -1,5 +1,6 @@
+use futures::{stream, StreamExt};
 use serde::Serialize;
-use sqlx::{QueryBuilder, Sqlite};
+use sqlx::{Database, QueryBuilder, Sqlite};
 use tauri::{async_runtime::Mutex, State};
 
 use crate::{
@@ -33,22 +34,13 @@ pub async fn get_games(
         Err(_) => return Err("unable to acquire db connection".to_string()),
     };
 
-    sqlx::query("delete from games")
-        .execute(&mut *pool)
+    prepare_db(db_state.clone())
         .await
-        .map_err(|_| "unable to delete game from games table".to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    let mut query_builder: QueryBuilder<Sqlite> =
-        QueryBuilder::new("insert into games (name, summary) ");
-
-    query_builder.push_values(&igdb_games, |mut query_builder, record| {
-        query_builder
-            .push_bind(record.name.clone())
-            .push_bind(record.summary.clone());
-    });
-
-    let query = query_builder.build();
-    query.execute(&mut *pool).await.map_err(|e| e.to_string())?;
+    insert_games(db_state.clone(), igdb_games)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let games = sqlx::query_as!(Game, r#"select * from games"#)
         .fetch_all(&mut *pool)
@@ -56,6 +48,41 @@ pub async fn get_games(
         .map_err(|e| e.to_string())?;
 
     Ok(games)
+}
+
+async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
+    let mut pool = db_state.pool.acquire().await?;
+
+    sqlx::query("delete from games").execute(&mut *pool).await?;
+
+    Ok(())
+}
+
+async fn insert_games(
+    db_state: State<'_, DatabaseState>,
+    games: Vec<IgdbGame>,
+) -> Result<(), sqlx::Error> {
+    let res: Vec<_> = stream::iter(&games)
+        .map(|game| {
+            let state = db_state.clone();
+            async move {
+                let mut pool = state.pool.acquire().await?;
+                let id = sqlx::query!(
+                    r#"insert into games (name, summary) values ( ?1, ?2)"#,
+                    game.name,
+                    game.summary
+                )
+                .execute(&mut *pool)
+                .await?
+                .last_insert_rowid();
+                Ok::<i64, sqlx::Error>(id)
+            }
+        })
+        .filter_map(|item| async move { item.await.ok() })
+        .collect()
+        .await;
+    dbg!(res);
+    Ok(())
 }
 
 #[tauri::command]
