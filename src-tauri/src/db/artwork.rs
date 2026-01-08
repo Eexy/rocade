@@ -52,13 +52,13 @@ impl ArtworkRepository {
     pub async fn bulk_insert_artworks(
         pool: &Pool<Sqlite>,
         game_id: i64,
-        artwork_ids: Vec<String>,
+        artworks_ids: Vec<String>,
     ) -> Result<(), sqlx::Error> {
         let mut conn = pool.acquire().await?;
 
         let mut artwork_query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new("insert into artworks (game_id, artwork_id) ");
-        artwork_query_builder.push_values(artwork_ids, |mut query_builder, artwork_id| {
+        artwork_query_builder.push_values(artworks_ids, |mut query_builder, artwork_id| {
             query_builder.push_bind(game_id).push_bind(artwork_id);
         });
 
