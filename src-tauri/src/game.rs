@@ -1,6 +1,6 @@
 use futures::{stream, StreamExt};
 use serde::Serialize;
-use sqlx::{Database, QueryBuilder, Sqlite};
+use sqlx::{query, Database, Execute, QueryBuilder, Sqlite};
 use tauri::{async_runtime::Mutex, State};
 
 use crate::{
@@ -14,6 +14,20 @@ pub struct Game {
     id: i64,
     name: String,
     summary: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct Artwork {
+    id: i64,
+    game_id: i64,
+    artwork_id: String,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct Cover {
+    id: i64,
+    game_id: i64,
+    cover_id: String,
 }
 
 #[tauri::command]
@@ -53,6 +67,12 @@ pub async fn get_games(
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
     let mut pool = db_state.pool.acquire().await?;
 
+    sqlx::query("delete from artworks")
+        .execute(&mut *pool)
+        .await?;
+    sqlx::query("delete from covers")
+        .execute(&mut *pool)
+        .await?;
     sqlx::query("delete from games").execute(&mut *pool).await?;
 
     Ok(())
@@ -62,7 +82,7 @@ async fn insert_games(
     db_state: State<'_, DatabaseState>,
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
-    let res: Vec<_> = stream::iter(&games)
+    let _res: Vec<_> = stream::iter(&games)
         .map(|game| {
             let state = db_state.clone();
             async move {
@@ -75,13 +95,38 @@ async fn insert_games(
                 .execute(&mut *pool)
                 .await?
                 .last_insert_rowid();
+
+                sqlx::query!(
+                    r#"insert into covers (game_id, cover_id) values ( ?1, ?2)"#,
+                    id,
+                    game.cover.image_id
+                )
+                .execute(&mut *pool)
+                .await?;
+
+                if let Some(artworks) = &game.artworks {
+                    if !artworks.is_empty() {
+                        let mut artwork_query_builder: QueryBuilder<Sqlite> =
+                            QueryBuilder::new("insert into artworks (game_id, artwork_id) ");
+                        artwork_query_builder.push_values(
+                            artworks,
+                            |mut query_builder, artwork| {
+                                query_builder
+                                    .push_bind(id)
+                                    .push_bind(artwork.image_id.clone());
+                            },
+                        );
+                        let query = artwork_query_builder.build();
+                        query.execute(&mut *pool).await?;
+                    }
+                }
+
                 Ok::<i64, sqlx::Error>(id)
             }
         })
-        .filter_map(|item| async move { item.await.ok() })
         .collect()
         .await;
-    dbg!(res);
+
     Ok(())
 }
 

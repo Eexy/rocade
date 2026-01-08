@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use crate::twitch::TwitchApiClient;
 use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
@@ -12,7 +10,7 @@ pub struct IgdbGenre {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbImage {
-    image_id: String,
+    pub image_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -33,8 +31,8 @@ pub struct IgdbGame {
     storyline: Option<String>,
     pub summary: Option<String>,
     genres: Vec<IgdbGenre>,
-    cover: IgdbImage,
-    artworks: Option<Vec<IgdbImage>>,
+    pub cover: IgdbImage,
+    pub artworks: Option<Vec<IgdbImage>>,
 }
 
 #[derive(Debug)]
