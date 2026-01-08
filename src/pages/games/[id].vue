@@ -6,9 +6,19 @@
                     <img v-if="artworkUrl" :src="artworkUrl" class="w-full h-full object-cover" />
                     <div class="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent">
                     </div>
+                    <div class="absolute bottom-0 p-6 flex flex-col gap-5">
+                        <div>
+                            <h1 class="text-5xl">{{ currentGame.name }}</h1>
+                        </div>
+                        <Button class="self-start py-6">
+                            <span class="flex gap-4 px-2">
+                                <PlayIcon class="size-5" fill="white" />
+                                <span>Play</span>
+                            </span>
+                        </Button>
+                    </div>
                 </div>
-                <div class="py-8">
-                    <h1 class="text-3xl font-semibold">{{ currentGame.name }}</h1>
+                <div class="py-6">
                     <p>{{ currentGame.summary }}</p>
                 </div>
             </div>
@@ -17,6 +27,8 @@
 </template>
 
 <script setup lang="ts">
+import Button from '@/components/ui/button/Button.vue';
+import { PlayIcon } from 'lucide-vue-next';
 import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
