@@ -1,21 +1,22 @@
 <template>
-    <div v-if="currentGame" class="flex flex-col gap-4 p-2">
-        <div>
-            <img v-if="artworkUrl" :src="artworkUrl" class="rounded-sm" />
+    <div v-if="currentGame" class="flex text-foreground justify-center">
+        <div class="w-5/6 mx-auto">
+            <div class="relative rounded-xl overflow-hidden">
+                <div class="aspect-21/9 relative">
+                    <img v-if="artworkUrl" :src="artworkUrl" class="w-full h-full object-cover" />
+                    <div class="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent">
+                    </div>
+                </div>
+                <div class="py-8">
+                    <h1 class="text-3xl font-semibold">{{ currentGame.name }}</h1>
+                    <p>{{ currentGame.summary }}</p>
+                </div>
+            </div>
         </div>
-        <div>
-            <img v-if="coverUrl" :src="coverUrl" class="rounded-sm" />
-        </div>
-        <h1 class="text-3xl font-semibold">{{ currentGame.name }}</h1>
-        <div class="flex gap-1">
-            <Badge v-for="genre in currentGame.genres" :key="genre.name">{{ genre.name }}</Badge>
-        </div>
-        <p>{{ currentGame.summary }}</p>
     </div>
 </template>
 
 <script setup lang="ts">
-import Badge from '@/components/ui/badge/Badge.vue';
 import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
@@ -30,14 +31,6 @@ const currentGame = computed(() => {
     return games.value.find(game => game.id === id.value)
 })
 
-const coverUrl = computed(() => {
-    if (!currentGame.value) return null
-
-    if (!currentGame.value.cover) return null
-
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.cover}.jpg`
-})
-
 
 const artworkUrl = computed(() => {
     if (!currentGame.value) return null
@@ -45,11 +38,8 @@ const artworkUrl = computed(() => {
     if (!currentGame.value.artworks) return null
 
     if (!currentGame.value.artworks[0]) return null
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.artworks[0]}.jpg`
+    return `https://images.igdb.com/igdb/image/upload/t_1080p/${currentGame.value.artworks[0]}.jpg`
 })
-
-
-
 
 </script>
 
