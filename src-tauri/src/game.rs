@@ -1,6 +1,6 @@
 use futures::{stream, StreamExt};
 use serde::Serialize;
-use sqlx::{query, Database, Execute, QueryBuilder, Sqlite};
+use sqlx::{QueryBuilder, Sqlite};
 use tauri::{async_runtime::Mutex, State};
 
 use crate::{
