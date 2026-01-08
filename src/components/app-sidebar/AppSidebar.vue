@@ -1,7 +1,12 @@
 <template>
     <Sidebar>
         <SidebarHeader>
-            <Input v-model="search" placeholder="Search games"></Input>
+            <InputGroup>
+                <InputGroupInput placeholder="Search games" v-model="search"></InputGroupInput>
+                <InputGroupAddon>
+                    <SearchIcon></SearchIcon>
+                </InputGroupAddon>
+            </InputGroup>
         </SidebarHeader>
         <SidebarContent>
             <ul>
@@ -17,7 +22,8 @@
 import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
 import { Sidebar, SidebarContent, SidebarHeader } from "@/components/ui/sidebar"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from '../ui/input-group';
+import { SearchIcon } from 'lucide-vue-next';
 import GameSidebarItem from "@/components/app-sidebar/game-sidebar-item/GameSidebarItem.vue";
 
 const { filteredGames, search } = storeToRefs(useGameStore())
