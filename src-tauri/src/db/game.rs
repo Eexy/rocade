@@ -23,7 +23,7 @@ impl GameRepository {
     pub async fn get_games(pool: &Pool<Sqlite>) -> Result<Vec<GameRow>, sqlx::Error> {
         let mut conn = pool.acquire().await?;
 
-        let games = sqlx::query_as!(GameRow, "select * from games")
+        let games = sqlx::query_as!(GameRow, "select * from games order by name")
             .fetch_all(&mut *conn)
             .await?;
 
