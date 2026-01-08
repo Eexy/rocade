@@ -19,7 +19,10 @@
                     </div>
                 </div>
                 <div class="py-8">
-                    <Card>
+                    <Card class="gap-3">
+                        <CardHeader>
+                            <CardTitle class="text-2xl">About</CardTitle>
+                        </CardHeader>
                         <CardContent>
                             {{ currentGame.summary }}
                         </CardContent>
@@ -39,6 +42,8 @@ import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import CardTitle from '@/components/ui/card/CardTitle.vue';
+import CardHeader from '@/components/ui/card/CardHeader.vue';
 
 const route = useRoute('/games/[id]');
 const id = computed(() => Number(route.params.id))
