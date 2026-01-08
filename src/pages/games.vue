@@ -20,17 +20,14 @@ import AppSidebar from "@/components/app-sidebar/AppSidebar.vue"
 const { games } = storeToRefs(useGameStore())
 
 onMounted(async () => {
-    const isInitialized = sessionStorage.getItem("isInitialized")
+    let res: GameInfo[] = await invoke("get_games")
 
-    if (!isInitialized) {
+    if (!res.length) {
         await invoke("refresh_games")
-        sessionStorage.setItem("isInitialized", 'true')
-        const res: GameInfo[] = await invoke("get_games")
-        games.value = res
-    } else {
-        const res: GameInfo[] = await invoke("get_games")
-        games.value = res
+        res = await invoke("get_games");
     }
+
+    games.value = res
 })
 
 </script>
