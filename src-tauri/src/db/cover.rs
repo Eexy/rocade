@@ -29,4 +29,23 @@ impl CoverRepository {
 
         Ok(covers)
     }
+
+    pub async fn insert_cover(
+        pool: &Pool<Sqlite>,
+        game_id: i64,
+        cover_id: String,
+    ) -> Result<i64, sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let id = sqlx::query!(
+            r#"insert into covers (game_id, cover_id) values ( ?1, ?2)"#,
+            game_id,
+            cover_id
+        )
+        .execute(&mut *conn)
+        .await?
+        .last_insert_rowid();
+
+        Ok(id)
+    }
 }

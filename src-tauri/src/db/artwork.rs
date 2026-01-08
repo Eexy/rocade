@@ -1,4 +1,4 @@
-use sqlx::{Pool, Sqlite};
+use sqlx::{Pool, QueryBuilder, Sqlite};
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct ArtworkRow {
@@ -28,5 +28,43 @@ impl ArtworkRepository {
             .await?;
 
         Ok(artworks)
+    }
+
+    pub async fn insert_artwork(
+        pool: &Pool<Sqlite>,
+        game_id: i64,
+        artwork_id: String,
+    ) -> Result<i64, sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let id = sqlx::query!(
+            r#"insert into artworks (game_id, artwork_id) values ( ?1, ?2)"#,
+            game_id,
+            artwork_id
+        )
+        .execute(&mut *conn)
+        .await?
+        .last_insert_rowid();
+
+        Ok(id)
+    }
+
+    pub async fn bulk_insert_artworks(
+        pool: &Pool<Sqlite>,
+        game_id: i64,
+        artwork_ids: Vec<String>,
+    ) -> Result<(), sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let mut artwork_query_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("insert into artworks (game_id, artwork_id) ");
+        artwork_query_builder.push_values(artwork_ids, |mut query_builder, artwork_id| {
+            query_builder.push_bind(game_id).push_bind(artwork_id);
+        });
+
+        let query = artwork_query_builder.build();
+        query.execute(&mut *conn).await?;
+
+        Ok(())
     }
 }

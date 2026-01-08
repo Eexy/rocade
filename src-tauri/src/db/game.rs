@@ -29,4 +29,23 @@ impl GameRepository {
 
         Ok(games)
     }
+
+    pub async fn insert_game(
+        pool: &Pool<Sqlite>,
+        name: String,
+        summary: Option<String>,
+    ) -> Result<i64, sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let id = sqlx::query!(
+            r#"insert into games (name, summary) values ( ?1, ?2)"#,
+            name,
+            summary
+        )
+        .execute(&mut *conn)
+        .await?
+        .last_insert_rowid();
+
+        Ok(id)
+    }
 }

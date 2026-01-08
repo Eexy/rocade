@@ -1,16 +1,10 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use sqlx::{QueryBuilder, Sqlite};
 use tauri::{async_runtime::Mutex, State};
 
 use crate::{
-    db::{
-        artwork::ArtworkRepository,
-        cover::{CoverRepository, CoverRow},
-        game::GameRepository,
-        DatabaseState,
-    },
+    db::{artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository, DatabaseState},
     igdb::{IgdbApiClient, IgdbGame},
     steam::SteamApiClient,
 };
@@ -103,37 +97,19 @@ async fn insert_games(
     db_state: State<'_, DatabaseState>,
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
-    let mut pool = db_state.pool.acquire().await?;
-
     for game in games {
-        let id = sqlx::query!(
-            r#"insert into games (name, summary) values ( ?1, ?2)"#,
-            game.name,
-            game.summary
-        )
-        .execute(&mut *pool)
-        .await?
-        .last_insert_rowid();
+        let id = GameRepository::insert_game(&db_state.pool, game.name, game.summary).await?;
 
-        sqlx::query!(
-            r#"insert into covers (game_id, cover_id) values ( ?1, ?2)"#,
-            id,
-            game.cover.image_id
-        )
-        .execute(&mut *pool)
-        .await?;
+        CoverRepository::insert_cover(&db_state.pool, id, game.cover.image_id).await?;
 
-        if let Some(artworks) = &game.artworks {
+        if let Some(artworks) = game.artworks {
             if !artworks.is_empty() {
-                let mut artwork_query_builder: QueryBuilder<Sqlite> =
-                    QueryBuilder::new("insert into artworks (game_id, artwork_id) ");
-                artwork_query_builder.push_values(artworks, |mut query_builder, artwork| {
-                    query_builder
-                        .push_bind(id)
-                        .push_bind(artwork.image_id.clone());
-                });
-                let query = artwork_query_builder.build();
-                query.execute(&mut *pool).await?;
+                let artworks_ids: Vec<_> = artworks
+                    .into_iter()
+                    .map(|artwork| artwork.image_id)
+                    .collect();
+
+                ArtworkRepository::bulk_insert_artworks(&db_state.pool, id, artworks_ids).await?;
             }
         }
     }
