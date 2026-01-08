@@ -17,7 +17,8 @@ const props = defineProps<Props>()
 
 
 const coverUrl = computed(() => {
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${props.game.cover.image_id}.jpg`
+    if (!props.game.cover) return
+    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${props.game.cover}.jpg`
 })
 
 </script>

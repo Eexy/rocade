@@ -34,15 +34,18 @@ const coverUrl = computed(() => {
     if (!currentGame.value) return null
 
     if (!currentGame.value.cover) return null
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.cover.image_id}.jpg`
+
+    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.cover}.jpg`
 })
 
 
 const artworkUrl = computed(() => {
     if (!currentGame.value) return null
 
+    if (!currentGame.value.artworks) return null
+
     if (!currentGame.value.artworks[0]) return null
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.artworks[0].image_id}.jpg`
+    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${currentGame.value.artworks[0]}.jpg`
 })
 
 
