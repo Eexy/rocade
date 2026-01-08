@@ -187,17 +187,3 @@ async fn insert_games(
 
     Ok(())
 }
-
-#[tauri::command]
-pub async fn get_game(
-    igdb_client: State<'_, Mutex<IgdbApiClient>>,
-    steam_game_id: u64,
-) -> Result<IgdbGame, String> {
-    let mut state = igdb_client.lock().await;
-    let games_res = state
-        .get_game(steam_game_id)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(games_res)
-}
