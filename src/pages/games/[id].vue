@@ -18,8 +18,12 @@
                         </Button>
                     </div>
                 </div>
-                <div class="py-6">
-                    <p>{{ currentGame.summary }}</p>
+                <div class="py-8">
+                    <Card>
+                        <CardContent>
+                            {{ currentGame.summary }}
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>
@@ -28,6 +32,8 @@
 
 <script setup lang="ts">
 import Button from '@/components/ui/button/Button.vue';
+import Card from '@/components/ui/card/Card.vue';
+import CardContent from '@/components/ui/card/CardContent.vue';
 import { PlayIcon } from 'lucide-vue-next';
 import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
