@@ -5,31 +5,15 @@ use sqlx::{QueryBuilder, Sqlite};
 use tauri::{async_runtime::Mutex, State};
 
 use crate::{
-    db::DatabaseState,
+    db::{
+        artwork::ArtworkRepository,
+        cover::{CoverRepository, CoverRow},
+        game::GameRepository,
+        DatabaseState,
+    },
     igdb::{IgdbApiClient, IgdbGame},
     steam::SteamApiClient,
 };
-
-#[derive(sqlx::FromRow, Serialize, Debug)]
-pub struct GameRow {
-    id: i64,
-    name: String,
-    summary: Option<String>,
-}
-
-#[derive(sqlx::FromRow, Debug)]
-pub struct ArtworkRow {
-    id: i64,
-    game_id: i64,
-    artwork_id: String,
-}
-
-#[derive(sqlx::FromRow, Debug)]
-pub struct CoverRow {
-    id: i64,
-    game_id: i64,
-    cover_id: String,
-}
 
 #[derive(Serialize)]
 pub struct Game {
@@ -74,33 +58,24 @@ pub async fn refresh_games(
 }
 
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
-    let mut pool = db_state.pool.acquire().await?;
-
-    sqlx::query("delete from artworks")
-        .execute(&mut *pool)
-        .await?;
-    sqlx::query("delete from covers")
-        .execute(&mut *pool)
-        .await?;
-    sqlx::query("delete from games").execute(&mut *pool).await?;
+    CoverRepository::delete_covers(&db_state.pool).await?;
+    ArtworkRepository::delete_artworks(&db_state.pool).await?;
+    GameRepository::delete_games(&db_state.pool).await?;
 
     Ok(())
 }
 
 async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, sqlx::Error> {
-    let mut pool = db_state.pool.acquire().await?;
-    let res = sqlx::query_as!(GameRow, r#"select * from games"#)
-        .fetch_all(&mut *pool)
-        .await?;
+    let games = GameRepository::get_games(&db_state.pool).await?;
 
-    let covers = get_cover_from_db(db_state.clone()).await?;
+    let covers = CoverRepository::get_covers(&db_state.pool).await?;
     let mut covers_map = HashMap::new();
 
     for cover in covers {
         covers_map.insert(cover.game_id, cover.cover_id);
     }
 
-    let artworks = get_artworks_from_db(db_state.clone()).await?;
+    let artworks = ArtworkRepository::get_artworks(&db_state.pool).await?;
     let mut artworks_map = HashMap::new();
 
     for artwork in artworks {
@@ -110,7 +85,7 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
             .push(artwork.artwork_id);
     }
 
-    let games: Vec<Game> = res
+    let games: Vec<Game> = games
         .into_iter()
         .map(|game| Game {
             id: game.id,
@@ -122,28 +97,6 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
         .collect();
 
     Ok(games)
-}
-
-async fn get_cover_from_db(
-    db_state: State<'_, DatabaseState>,
-) -> Result<Vec<CoverRow>, sqlx::Error> {
-    let mut pool = db_state.pool.acquire().await?;
-    let res = sqlx::query_as!(CoverRow, r#"select * from covers"#)
-        .fetch_all(&mut *pool)
-        .await?;
-
-    Ok(res)
-}
-
-async fn get_artworks_from_db(
-    db_state: State<'_, DatabaseState>,
-) -> Result<Vec<ArtworkRow>, sqlx::Error> {
-    let mut pool = db_state.pool.acquire().await?;
-    let res = sqlx::query_as!(ArtworkRow, r#"select * from artworks"#)
-        .fetch_all(&mut *pool)
-        .await?;
-
-    Ok(res)
 }
 
 async fn insert_games(

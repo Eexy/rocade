@@ -17,7 +17,6 @@ impl DatabaseState {
         fs::create_dir_all(&app_dir).expect("unable to create app directory");
 
         let db_path = app_dir.join("rocade.db");
-        let db_url = format!("sqlite:{}", db_path.display());
 
         let connexion = SqliteConnectOptions::new()
             .filename(&db_path)
@@ -29,3 +28,7 @@ impl DatabaseState {
         Ok(Self { pool: pool })
     }
 }
+
+pub mod artwork;
+pub mod cover;
+pub mod game;
