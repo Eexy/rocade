@@ -1,7 +1,7 @@
 <template>
     <Sidebar>
         <SidebarHeader>
-            <Input v-model="search"></Input>
+            <Input v-model="search" placeholder="Search games"></Input>
         </SidebarHeader>
         <SidebarContent>
             <ul>
