@@ -41,11 +41,20 @@ pub struct Game {
 }
 
 #[tauri::command]
-pub async fn get_games(
+pub async fn get_games(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, String> {
+    let games = get_games_from_db(db_state.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(games)
+}
+
+#[tauri::command]
+pub async fn refresh_games(
     steam_client: State<'_, SteamApiClient>,
     igdb_client: State<'_, Mutex<IgdbApiClient>>,
     db_state: State<'_, DatabaseState>,
-) -> Result<Vec<Game>, String> {
+) -> Result<(), String> {
     let games_res = steam_client.get_games().await.map_err(|e| e.to_string())?;
     let mut locked_client = igdb_client.lock().await;
 
@@ -61,11 +70,7 @@ pub async fn get_games(
         .await
         .map_err(|e| e.to_string())?;
 
-    let games = get_games_from_db(db_state.clone())
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(games)
+    Ok(())
 }
 
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {

@@ -12,7 +12,7 @@
 import { SidebarTrigger, SidebarProvider } from "@/components/ui/sidebar"
 import { onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core"
-import { Game } from "@/types/game";
+import { GameInfo } from "@/types/game";
 import { useGameStore } from "@/stores/game.store";
 import { storeToRefs } from "pinia";
 import AppSidebar from "@/components/app-sidebar/AppSidebar.vue"
@@ -20,8 +20,17 @@ import AppSidebar from "@/components/app-sidebar/AppSidebar.vue"
 const { games } = storeToRefs(useGameStore())
 
 onMounted(async () => {
-    const res: Game[] = await invoke("get_games")
-    games.value = res
+    const isInitialized = sessionStorage.getItem("isInitialized")
+
+    if (!isInitialized) {
+        await invoke("refresh_games")
+        sessionStorage.setItem("isInitialized", 'true')
+        const res: GameInfo[] = await invoke("get_games")
+        games.value = res
+    } else {
+        const res: GameInfo[] = await invoke("get_games")
+        games.value = res
+    }
 })
 
 </script>
