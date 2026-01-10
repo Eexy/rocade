@@ -22,6 +22,7 @@ pub struct Game {
     summary: Option<String>,
     store_id: Option<String>,
     cover: Option<String>,
+    is_installed: Option<bool>,
     artworks: Option<Vec<String>>,
 }
 
@@ -100,6 +101,7 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
             id: game.id,
             name: game.name,
             summary: game.summary,
+            is_installed: Some(false),
             cover: covers_map.get(&game.id).cloned(),
             artworks: artworks_map.get(&game.id).cloned(),
             store_id: games_stores_map.get(&game.id).cloned(),
@@ -143,7 +145,6 @@ pub async fn get_game(
     db_state: State<'_, DatabaseState>,
     game_id: i64,
 ) -> Result<Game, String> {
-    let dir = steam_client.get_steam_dir();
     let game = GameRepository::get_game_by_id(&db_state.pool, game_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -157,9 +158,12 @@ pub async fn get_game(
         .await
         .map_err(|e| e.to_string())?;
 
+    let is_installed = steam_client.is_steam_game_install(game_store.store_id.clone());
+
     Ok(Game {
         id: game.id,
         name: game.name,
+        is_installed: Some(is_installed),
         summary: game.summary,
         artworks: Some(
             artworks

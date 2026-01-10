@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri_plugin_http::reqwest::Client;
@@ -64,7 +64,7 @@ impl SteamClient {
         SteamClient {}
     }
 
-    pub fn get_steam_dir(&self) -> Result<PathBuf, String> {
+    fn get_steam_dir(&self) -> Result<PathBuf, String> {
         use std::env;
 
         let mut user_dir = match env::home_dir() {
@@ -77,8 +77,58 @@ impl SteamClient {
         user_dir.push("Steam");
         user_dir.push("steamapps");
 
-        user_dir.try_exists().map_err(|e| e.to_string())?;
+        Ok(user_dir)
+    }
 
-        return Ok(user_dir);
+    fn get_game_manifest_file_path(&self, steam_game_id: String) -> Result<PathBuf, String> {
+        let mut steam_dir = self.get_steam_dir()?;
+        steam_dir.push(format!("appmanifest_{}", steam_game_id));
+        steam_dir.set_extension("acf");
+        Ok(steam_dir)
+    }
+
+    pub fn is_steam_game_install(&self, game_id: String) -> bool {
+        let manifest_file = match self.get_game_manifest_file_path(game_id) {
+            Ok(file) => file,
+            Err(_) => return false,
+        };
+
+        let exist = match manifest_file.try_exists() {
+            Ok(exist) => exist,
+            Err(_) => false,
+        };
+
+        if !exist {
+            return false;
+        }
+
+        let content = match fs::read_to_string(manifest_file) {
+            Ok(contents) => contents,
+            Err(_) => return false,
+        };
+
+        let mut bytes_to_download: Option<i64> = None;
+        let mut bytes_downloaded: Option<i64> = None;
+
+        for line in content.lines() {
+            let mut parts = line.trim().split_whitespace();
+            if let (Some(property), Some(value)) = (parts.next(), parts.next()) {
+                match property {
+                    "\"BytesToDownload\"" => {
+                        bytes_to_download = value.trim_matches('"').parse().ok();
+                    }
+                    "\"BytesDownloaded\"" => {
+                        bytes_downloaded = value.trim_matches('"').parse().ok();
+                    }
+                    _ => continue,
+                }
+
+                if bytes_to_download.is_some() && bytes_downloaded.is_some() {
+                    break;
+                }
+            }
+        }
+
+        matches!((bytes_to_download, bytes_downloaded), (Some(to_dl), Some(downloaded)) if to_dl == downloaded)
     }
 }
