@@ -6,7 +6,7 @@ use tauri::{async_runtime::Mutex, Manager};
 use crate::{
     db::DatabaseState,
     igdb::IgdbApiClient,
-    steam::{SteamApiClient, SteamState},
+    steam::{SteamApiClient, SteamClient},
     twitch::TwitchApiClient,
 };
 
@@ -16,7 +16,7 @@ mod igdb;
 mod steam;
 mod twitch;
 
-pub use commands::{get_games, refresh_games};
+pub use commands::{get_game, get_games, refresh_games};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -51,10 +51,10 @@ pub fn run() {
 
             match (app_config.get("STEAM_API_KEY"), app_config.get("STEAM_PROFILE_ID")) {
                 (Some(key), Some(profile_id)) => {
-                    let steam_state = SteamState::new(key.clone(), profile_id.clone());
                     let steam_api_client = SteamApiClient::new(key.clone(), profile_id.clone());
-                    app.manage::<SteamState>(steam_state);
                     app.manage::<SteamApiClient>(steam_api_client);
+                    let steam_client = SteamClient::new();
+                    app.manage::<SteamClient>(steam_client);
                 },
                 _ => {
                     panic!("Unable to load steam config. Missing STEAM_KEY or STEAM_PROFILE_ID in dotenv file")
@@ -76,7 +76,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_games, refresh_games])
+        .invoke_handler(tauri::generate_handler![get_games, refresh_games, get_game ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

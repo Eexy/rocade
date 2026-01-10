@@ -1,17 +1,7 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use tauri_plugin_http::reqwest::Client;
-
-#[derive(Debug)]
-pub struct SteamState {
-    key: String,
-    profile_id: String,
-}
-
-impl SteamState {
-    pub fn new(key: String, profile_id: String) -> Self {
-        return SteamState { key, profile_id };
-    }
-}
 
 #[derive(Debug)]
 pub struct SteamApiClient {
@@ -64,5 +54,31 @@ impl SteamApiClient {
         let parsed: GameListResponse = serde_json::from_str(&body).map_err(|e| e.to_string())?;
 
         Ok(parsed.response.games)
+    }
+}
+
+pub struct SteamClient {}
+
+impl SteamClient {
+    pub fn new() -> Self {
+        SteamClient {}
+    }
+
+    pub fn get_steam_dir(&self) -> Result<PathBuf, String> {
+        use std::env;
+
+        let mut user_dir = match env::home_dir() {
+            Some(path) => path,
+            None => return Err("unable to get user home directory".to_string()),
+        };
+
+        user_dir.push(r".local");
+        user_dir.push("share");
+        user_dir.push("Steam");
+        user_dir.push("steamapps");
+
+        user_dir.try_exists().map_err(|e| e.to_string())?;
+
+        return Ok(user_dir);
     }
 }
