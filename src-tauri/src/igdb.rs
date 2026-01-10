@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::twitch::TwitchApiClient;
 use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
@@ -28,6 +30,7 @@ pub struct IgdbGameInfo {
 pub struct IgdbGame {
     id: u64,
     pub name: String,
+    pub store_id: Option<String>,
     storyline: Option<String>,
     pub summary: Option<String>,
     genres: Vec<IgdbGenre>,
@@ -44,6 +47,7 @@ pub struct IgdbApiClient {
 #[derive(Deserialize, Debug)]
 pub struct IgdbAlternativeGame {
     game: u64,
+    uid: String,
 }
 
 impl IgdbApiClient {
@@ -71,6 +75,8 @@ impl IgdbApiClient {
             .await
             .map_err(|e| e.to_string())?;
 
+        let store_id = steam_game_id.to_string();
+
         let game_info = self
             .get_game_info(steam_game.game)
             .await
@@ -78,6 +84,7 @@ impl IgdbApiClient {
 
         let game = IgdbGame {
             name: game_info.name,
+            store_id: Some(store_id),
             summary: game_info.summary,
             storyline: game_info.storyline,
             genres: game_info.genres,
@@ -89,11 +96,17 @@ impl IgdbApiClient {
         Ok(game)
     }
 
-    pub async fn get_games(&mut self, steam_game_id: Vec<u64>) -> Result<Vec<IgdbGame>, String> {
+    pub async fn get_games(&mut self, steam_games_ids: Vec<u64>) -> Result<Vec<IgdbGame>, String> {
         let steam_games = self
-            .get_steam_games(steam_game_id)
+            .get_steam_games(steam_games_ids)
             .await
             .map_err(|e| e.to_string())?;
+
+        let mut steam_ids_map = HashMap::new();
+
+        for game in &steam_games {
+            steam_ids_map.insert(game.game, game.uid.clone());
+        }
 
         let games_infos = self
             .get_games_infos(steam_games.iter().map(|game| game.game).collect())
@@ -104,6 +117,7 @@ impl IgdbApiClient {
             .map(|game| {
                 let parse_game = IgdbGame {
                     name: game.name,
+                    store_id: steam_ids_map.get(&game.id).to_owned().cloned(),
                     summary: game.summary,
                     storyline: game.storyline,
                     genres: game.genres,
