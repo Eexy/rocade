@@ -5,11 +5,8 @@ use tauri::{async_runtime::Mutex, State};
 
 use crate::{
     db::{
-        artwork::{self, ArtworkRepository},
-        cover::CoverRepository,
-        game::GameRepository,
-        game_store::GameStoreRepository,
-        DatabaseState,
+        artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
+        game_store::GameStoreRepository, DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbGame},
     steam::{SteamApiClient, SteamClient},
