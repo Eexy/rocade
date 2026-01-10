@@ -1,4 +1,4 @@
-use sqlx::{Pool, Sqlite};
+use sqlx::{pool, Pool, Sqlite};
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct CoverRow {
@@ -47,5 +47,22 @@ impl CoverRepository {
         .last_insert_rowid();
 
         Ok(id)
+    }
+
+    pub async fn get_game_cover(
+        pool: &Pool<Sqlite>,
+        game_id: i64,
+    ) -> Result<CoverRow, sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let cover = sqlx::query_as!(
+            CoverRow,
+            r#"select * from covers where game_id = ?"#,
+            game_id,
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+
+        Ok(cover)
     }
 }

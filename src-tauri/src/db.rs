@@ -32,3 +32,4 @@ impl DatabaseState {
 pub mod artwork;
 pub mod cover;
 pub mod game;
+pub mod game_store;

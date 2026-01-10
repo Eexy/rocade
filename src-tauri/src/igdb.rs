@@ -112,24 +112,25 @@ impl IgdbApiClient {
             .get_games_infos(steam_games.iter().map(|game| game.game).collect())
             .await?;
 
-        let parsed: Vec<_> = games_infos
+        let parsed: Result<Vec<_>, String> = games_infos
             .into_iter()
             .map(|game| {
-                let parse_game = IgdbGame {
+                let store_id = steam_ids_map.get(&game.id).cloned();
+
+                Ok(IgdbGame {
                     name: game.name,
-                    store_id: steam_ids_map.get(&game.id).to_owned().cloned(),
+                    store_id,
                     summary: game.summary,
                     storyline: game.storyline,
                     genres: game.genres,
                     cover: game.cover,
                     artworks: game.artworks,
                     id: game.id,
-                };
-
-                parse_game
+                })
             })
             .collect();
-        Ok(parsed)
+
+        parsed
     }
 
     async fn get_steam_games(

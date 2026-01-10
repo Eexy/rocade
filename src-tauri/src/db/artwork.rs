@@ -67,4 +67,21 @@ impl ArtworkRepository {
 
         Ok(())
     }
+
+    pub async fn get_game_artworks(
+        pool: &Pool<Sqlite>,
+        game_id: i64,
+    ) -> Result<Vec<ArtworkRow>, sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let artworks = sqlx::query_as!(
+            ArtworkRow,
+            r#"select * from artworks where game_id = ?"#,
+            game_id
+        )
+        .fetch_all(&mut *conn)
+        .await?;
+
+        Ok(artworks)
+    }
 }

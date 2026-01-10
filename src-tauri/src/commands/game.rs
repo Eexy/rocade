@@ -4,9 +4,15 @@ use serde::Serialize;
 use tauri::{async_runtime::Mutex, State};
 
 use crate::{
-    db::{artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository, DatabaseState},
+    db::{
+        artwork::{self, ArtworkRepository},
+        cover::CoverRepository,
+        game::GameRepository,
+        game_store::GameStoreRepository,
+        DatabaseState,
+    },
     igdb::{IgdbApiClient, IgdbGame},
-    steam::SteamApiClient,
+    steam::{SteamApiClient, SteamClient},
 };
 
 #[derive(Serialize)]
@@ -14,6 +20,7 @@ pub struct Game {
     id: i64,
     name: String,
     summary: Option<String>,
+    store_id: Option<String>,
     cover: Option<String>,
     artworks: Option<Vec<String>>,
 }
@@ -54,6 +61,7 @@ pub async fn refresh_games(
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
     CoverRepository::delete_covers(&db_state.pool).await?;
     ArtworkRepository::delete_artworks(&db_state.pool).await?;
+    GameStoreRepository::delete_games_store(&db_state.pool).await?;
     GameRepository::delete_games(&db_state.pool).await?;
 
     Ok(())
@@ -79,6 +87,13 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
             .push(artwork.artwork_id);
     }
 
+    let games_stores = GameStoreRepository::get_games_store(&db_state.pool).await?;
+    let mut games_stores_map = HashMap::new();
+
+    for game_store in games_stores {
+        games_stores_map.insert(game_store.game_id, game_store.store_id);
+    }
+
     let games: Vec<Game> = games
         .into_iter()
         .map(|game| Game {
@@ -87,6 +102,7 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
             summary: game.summary,
             cover: covers_map.get(&game.id).cloned(),
             artworks: artworks_map.get(&game.id).cloned(),
+            store_id: games_stores_map.get(&game.id).cloned(),
         })
         .collect();
 
@@ -112,7 +128,46 @@ async fn insert_games(
                 ArtworkRepository::bulk_insert_artworks(&db_state.pool, id, artworks_ids).await?;
             }
         }
+
+        if let Some(store_id) = game.store_id {
+            GameStoreRepository::insert_game_store(&db_state.pool, id, store_id).await?;
+        }
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_game(
+    steam_client: State<'_, SteamClient>,
+    db_state: State<'_, DatabaseState>,
+    game_id: i64,
+) -> Result<Game, String> {
+    let dir = steam_client.get_steam_dir();
+    let game = GameRepository::get_game_by_id(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let cover = CoverRepository::get_game_cover(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let artworks = ArtworkRepository::get_game_artworks(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let game_store = GameStoreRepository::get_game_store(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Game {
+        id: game.id,
+        name: game.name,
+        summary: game.summary,
+        artworks: Some(
+            artworks
+                .into_iter()
+                .map(|artwork| artwork.artwork_id)
+                .collect(),
+        ),
+        cover: Some(cover.cover_id),
+        store_id: Some(game_store.store_id),
+    })
 }

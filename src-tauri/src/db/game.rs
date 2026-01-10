@@ -48,4 +48,14 @@ impl GameRepository {
 
         Ok(id)
     }
+
+    pub async fn get_game_by_id(pool: &Pool<Sqlite>, game_id: i64) -> Result<GameRow, sqlx::Error> {
+        let mut conn = pool.acquire().await?;
+
+        let game = sqlx::query_as!(GameRow, r#"select * from games where id = ?"#, game_id)
+            .fetch_one(&mut *conn)
+            .await?;
+
+        Ok(game)
+    }
 }

@@ -40,10 +40,11 @@ import CardContent from '@/components/ui/card/CardContent.vue';
 import { PlayIcon } from 'lucide-vue-next';
 import { useGameStore } from '@/stores/game.store';
 import { storeToRefs } from 'pinia';
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import CardTitle from '@/components/ui/card/CardTitle.vue';
 import CardHeader from '@/components/ui/card/CardHeader.vue';
+import { invoke } from '@tauri-apps/api/core';
 
 const route = useRoute('/games/[id]');
 const id = computed(() => Number(route.params.id))
@@ -52,6 +53,11 @@ const { games } = storeToRefs(useGameStore())
 
 const currentGame = computed(() => {
     return games.value.find(game => game.id === id.value)
+})
+
+onMounted(async () => {
+    const res = await invoke('get_game', { gameId: id.value });
+    console.log(res)
 })
 
 
