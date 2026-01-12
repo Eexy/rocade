@@ -181,3 +181,12 @@ pub fn install_game(
 ) -> Result<bool, String> {
     steam_client.install_game(app, steam_game_id)
 }
+
+#[tauri::command]
+pub fn uninstall_game(
+    steam_client: State<'_, SteamClient>,
+    app: AppHandle,
+    steam_game_id: String,
+) -> Result<bool, String> {
+    steam_client.uninstall_game(app, steam_game_id)
+}

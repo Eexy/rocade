@@ -102,6 +102,19 @@ impl SteamClient {
         Ok(true)
     }
 
+    pub fn uninstall_game(
+        &self,
+        app_handle: AppHandle,
+        steam_game_id: String,
+    ) -> Result<bool, String> {
+        app_handle
+            .opener()
+            .open_url(format!("steam://uninstall/{}", steam_game_id), None::<&str>)
+            .map_err(|e| e.to_string())?;
+
+        Ok(true)
+    }
+
     pub fn is_steam_game_install(&self, game_id: String) -> bool {
         let manifest_file = match self.get_game_manifest_file_path(game_id) {
             Ok(file) => file,

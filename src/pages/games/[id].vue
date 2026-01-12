@@ -10,17 +10,29 @@
                         <div>
                             <h1 class="text-5xl">{{ game.name }}</h1>
                         </div>
-                        <Button v-if="game.is_installed" class="self-start py-6">
-                            <span class="flex gap-4 px-2">
-                                <PlayIcon class="size-5" fill="white" />
-                                <span>Play</span>
-                            </span>
-                        </Button>
-                        <Button @click="onDownloadClick" v-else class="self-start py-6">
-                            <span class="flex gap-4 px-2">
-                                <span>Download</span>
-                            </span>
-                        </Button>
+                        <template v-if="game.is_installed">
+                            <div class="flex gap-3">
+                                <Button class="self-start py-6">
+                                    <span class="flex gap-4 px-2">
+                                        <PlayIcon class="size-5" fill="white" />
+                                        <span>Play</span>
+                                    </span>
+                                </Button>
+                                <Button @click="onUninstallClick" variant="destructive" class="self-start py-6">
+                                    <span class="flex gap-4 px-2">
+                                        <XIcon class="size-5" fill="white" />
+                                        <span>Uninstall</span>
+                                    </span>
+                                </Button>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <Button @click="onDownloadClick" class="self-start py-6">
+                                <span class="flex gap-4 px-2">
+                                    <span>Download</span>
+                                </span>
+                            </Button>
+                        </template>
                     </div>
                 </div>
                 <div class="py-8">
@@ -42,7 +54,7 @@
 import Button from '@/components/ui/button/Button.vue';
 import Card from '@/components/ui/card/Card.vue';
 import CardContent from '@/components/ui/card/CardContent.vue';
-import { PlayIcon } from 'lucide-vue-next';
+import { PlayIcon, XIcon } from 'lucide-vue-next';
 import { computed, ref, watchEffect } from 'vue';
 import { useRoute } from 'vue-router';
 import CardTitle from '@/components/ui/card/CardTitle.vue';
@@ -74,9 +86,17 @@ async function onDownloadClick() {
     if (!game.value) return
 
     if (!game.value.store_id) return
-    const res = await invoke("install_game", { gameId: game.value.store_id })
-    console.log(res)
+    await invoke("install_game", { steamGameId: game.value.store_id })
 }
+
+async function onUninstallClick() {
+    if (!game.value) return
+
+    if (!game.value.store_id) return
+    await invoke("uninstall_game", { steamGameId: game.value.store_id })
+}
+
+
 
 </script>
 
