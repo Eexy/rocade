@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use tauri::{async_runtime::Mutex, State};
+use tauri::{async_runtime::Mutex, AppHandle, State};
 
 use crate::{
     db::{
@@ -174,7 +174,10 @@ pub async fn get_game(
 }
 
 #[tauri::command]
-pub fn install_game(game_id: String) -> bool {
-    dbg!(game_id);
-    true
+pub fn install_game(
+    steam_client: State<'_, SteamClient>,
+    app: AppHandle,
+    steam_game_id: String,
+) -> Result<bool, String> {
+    steam_client.install_game(app, steam_game_id)
 }

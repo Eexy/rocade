@@ -1,7 +1,9 @@
 use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
 use tauri_plugin_http::reqwest::Client;
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Debug)]
 pub struct SteamApiClient {
@@ -85,6 +87,19 @@ impl SteamClient {
         steam_dir.push(format!("appmanifest_{}", steam_game_id));
         steam_dir.set_extension("acf");
         Ok(steam_dir)
+    }
+
+    pub fn install_game(
+        &self,
+        app_handle: AppHandle,
+        steam_game_id: String,
+    ) -> Result<bool, String> {
+        app_handle
+            .opener()
+            .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)
+            .map_err(|e| e.to_string())?;
+
+        Ok(true)
     }
 
     pub fn is_steam_game_install(&self, game_id: String) -> bool {
