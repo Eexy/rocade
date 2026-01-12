@@ -16,7 +16,7 @@
                                 <span>Play</span>
                             </span>
                         </Button>
-                        <Button @click="onInstallClick" v-else class="self-start py-6">
+                        <Button @click="onDownloadClick" v-else class="self-start py-6">
                             <span class="flex gap-4 px-2">
                                 <span>Download</span>
                             </span>
@@ -70,7 +70,7 @@ const artworkUrl = computed(() => {
     return `https://images.igdb.com/igdb/image/upload/t_1080p/${game.value.artworks[0]}.jpg`
 })
 
-async function onInstallClick() {
+async function onDownloadClick() {
     if (!game.value) return
 
     if (!game.value.store_id) return
