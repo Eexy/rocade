@@ -10,10 +10,15 @@
                         <div>
                             <h1 class="text-5xl">{{ game.name }}</h1>
                         </div>
-                        <Button class="self-start py-6">
+                        <Button v-if="game.is_installed" class="self-start py-6">
                             <span class="flex gap-4 px-2">
                                 <PlayIcon class="size-5" fill="white" />
-                                <span>{{ game.is_installed ? 'Play' : 'Download' }}</span>
+                                <span>Play</span>
+                            </span>
+                        </Button>
+                        <Button @click="onInstallClick" v-else class="self-start py-6">
+                            <span class="flex gap-4 px-2">
+                                <span>Download</span>
                             </span>
                         </Button>
                     </div>
@@ -64,6 +69,14 @@ const artworkUrl = computed(() => {
     if (!game.value.artworks[0]) return null
     return `https://images.igdb.com/igdb/image/upload/t_1080p/${game.value.artworks[0]}.jpg`
 })
+
+async function onInstallClick() {
+    if (!game.value) return
+
+    if (!game.value.store_id) return
+    const res = await invoke("install_game", { gameId: game.value.store_id })
+    console.log(res)
+}
 
 </script>
 

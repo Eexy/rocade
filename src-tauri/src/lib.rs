@@ -16,7 +16,7 @@ mod igdb;
 mod steam;
 mod twitch;
 
-pub use commands::{get_game, get_games, refresh_games};
+pub use commands::{get_game, get_games, install_game, refresh_games};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -76,7 +76,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_games, refresh_games, get_game ])
+        .invoke_handler(tauri::generate_handler![get_games, refresh_games, get_game , install_game])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

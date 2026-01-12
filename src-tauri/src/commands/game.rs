@@ -172,3 +172,9 @@ pub async fn get_game(
         store_id: Some(game_store.store_id),
     })
 }
+
+#[tauri::command]
+pub fn install_game(game_id: String) -> bool {
+    dbg!(game_id);
+    true
+}

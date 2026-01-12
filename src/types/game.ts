@@ -7,6 +7,7 @@ export type GameInfo = {
     genres: GameGenre[],
     storyline?: string,
     summary?: string,
+    store_id?: string
 
 }
 
