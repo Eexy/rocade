@@ -10,6 +10,9 @@
                         <div>
                             <h1 class="text-5xl">{{ game.name }}</h1>
                         </div>
+                        <div class="text-muted-foreground flex items-center gap-6">
+                            <div v-if="releaseDate">{{ releaseDate }}</div>
+                        </div>
                         <template v-if="game.is_installed">
                             <div class="flex gap-3">
                                 <Button class="self-start py-6">
@@ -61,15 +64,23 @@ import CardTitle from '@/components/ui/card/CardTitle.vue';
 import CardHeader from '@/components/ui/card/CardHeader.vue';
 import { invoke } from '@tauri-apps/api/core';
 import { GameInfo } from '@/types/game';
+import { format } from "date-fns"
 
 const route = useRoute('/games/[id]');
 const id = computed(() => Number(route.params.id))
 
 const game = ref<GameInfo | null>(null)
 
+const releaseDate = ref<string | null>(null)
+
 
 watchEffect(async () => {
     game.value = await invoke('get_game', { gameId: id.value });
+
+    if (game.value && game.value.release_date) {
+        releaseDate.value = format(new Date(game.value.release_date), "MMMM dd, yyyy")
+    }
+
 })
 
 
