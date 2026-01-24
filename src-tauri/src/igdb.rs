@@ -142,13 +142,10 @@ impl IgdbApiClient {
         game_ids: Vec<u64>,
     ) -> Result<Vec<IgdbAlternativeGame>, String> {
         const URL: &str = "https://api.igdb.com/v4/external_games";
-        let steam_urls: Vec<_> = game_ids
-            .iter()
-            .map(|id| format!(r#""https://store.steampowered.com/app/{}""#, &id))
-            .collect();
+        let steam_urls: Vec<_> = game_ids.iter().map(|id| format!(r#""{}""#, &id)).collect();
 
         let query = format!(
-            "fields *;  where external_game_source = 1 & url = ({}); limit {};",
+            "fields *;  where external_game_source = 1 & uid = ({}); limit {};",
             steam_urls.join(","),
             game_ids.len()
         );
