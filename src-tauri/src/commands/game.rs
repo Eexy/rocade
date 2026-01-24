@@ -6,7 +6,7 @@ use tauri::{async_runtime::Mutex, AppHandle, State};
 use crate::{
     db::{
         artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
-        game_store::GameStoreRepository, DatabaseState,
+        game_store::GameStoreRepository, genre::GenreRepository, DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbGame},
     steam::{SteamApiClient, SteamClient},
@@ -61,6 +61,7 @@ async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Erro
     CoverRepository::delete_covers(&db_state.pool).await?;
     ArtworkRepository::delete_artworks(&db_state.pool).await?;
     GameStoreRepository::delete_games_store(&db_state.pool).await?;
+    GenreRepository::delete_genres(&db_state.pool).await?;
     GameRepository::delete_games(&db_state.pool).await?;
 
     Ok(())
@@ -132,6 +133,13 @@ async fn insert_games(
             }
         }
 
+        GenreRepository::insert_game_genres(
+            &db_state.pool,
+            id,
+            game.genres.iter().map(|genre| genre.name.clone()).collect(),
+        )
+        .await?;
+
         if let Some(store_id) = game.store_id {
             GameStoreRepository::insert_game_store(&db_state.pool, id, store_id).await?;
         }
@@ -155,6 +163,7 @@ pub async fn get_game(
     let artworks = ArtworkRepository::get_game_artworks(&db_state.pool, game_id)
         .await
         .map_err(|e| e.to_string())?;
+
     let game_store = GameStoreRepository::get_game_store(&db_state.pool, game_id)
         .await
         .map_err(|e| e.to_string())?;

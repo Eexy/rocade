@@ -7,7 +7,7 @@ use tauri_plugin_http::reqwest::{Client, Response};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGenre {
-    name: String,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -34,7 +34,7 @@ pub struct IgdbGame {
     pub store_id: Option<String>,
     storyline: Option<String>,
     pub summary: Option<String>,
-    genres: Vec<IgdbGenre>,
+    pub genres: Vec<IgdbGenre>,
     pub cover: IgdbImage,
     pub artworks: Option<Vec<IgdbImage>>,
     pub release_date: i64,
