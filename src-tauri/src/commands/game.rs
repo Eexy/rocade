@@ -22,6 +22,7 @@ pub struct Game {
     is_installed: Option<bool>,
     artworks: Option<Vec<String>>,
     release_date: Option<i64>,
+    genres: Option<Vec<String>>,
 }
 
 #[tauri::command]
@@ -98,6 +99,7 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
         .into_iter()
         .map(|game| Game {
             id: game.id,
+            genres: None,
             name: game.name,
             summary: game.summary,
             is_installed: Some(false),
@@ -170,10 +172,15 @@ pub async fn get_game(
 
     let is_installed = steam_client.is_steam_game_install(game_store.store_id.clone());
 
+    let genres = GenreRepository::get_game_genre(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(Game {
         id: game.id,
         release_date: game.release_date,
         name: game.name,
+        genres: Some(genres),
         is_installed: Some(is_installed),
         summary: game.summary,
         artworks: Some(
