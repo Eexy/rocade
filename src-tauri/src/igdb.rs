@@ -24,6 +24,7 @@ pub struct IgdbGameInfo {
     storyline: Option<String>,
     summary: Option<String>,
     artworks: Option<Vec<IgdbImage>>,
+    first_release_date: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,6 +37,7 @@ pub struct IgdbGame {
     genres: Vec<IgdbGenre>,
     pub cover: IgdbImage,
     pub artworks: Option<Vec<IgdbImage>>,
+    pub release_date: i64,
 }
 
 #[derive(Debug)]
@@ -91,6 +93,7 @@ impl IgdbApiClient {
             cover: game_info.cover,
             artworks: game_info.artworks,
             id: game_info.id,
+            release_date: game_info.first_release_date,
         };
 
         Ok(game)
@@ -126,6 +129,7 @@ impl IgdbApiClient {
                     cover: game.cover,
                     artworks: game.artworks,
                     id: game.id,
+                    release_date: game.first_release_date,
                 })
             })
             .collect();

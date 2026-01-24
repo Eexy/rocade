@@ -21,6 +21,7 @@ pub struct Game {
     cover: Option<String>,
     is_installed: Option<bool>,
     artworks: Option<Vec<String>>,
+    release_date: Option<i64>,
 }
 
 #[tauri::command]
@@ -102,6 +103,7 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
             cover: covers_map.get(&game.id).cloned(),
             artworks: artworks_map.get(&game.id).cloned(),
             store_id: games_stores_map.get(&game.id).cloned(),
+            release_date: game.release_date,
         })
         .collect();
 
@@ -113,7 +115,9 @@ async fn insert_games(
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
     for game in games {
-        let id = GameRepository::insert_game(&db_state.pool, game.name, game.summary).await?;
+        let id =
+            GameRepository::insert_game(&db_state.pool, game.name, game.summary, game.release_date)
+                .await?;
 
         CoverRepository::insert_cover(&db_state.pool, id, game.cover.image_id).await?;
 
@@ -159,6 +163,7 @@ pub async fn get_game(
 
     Ok(Game {
         id: game.id,
+        release_date: game.release_date,
         name: game.name,
         is_installed: Some(is_installed),
         summary: game.summary,

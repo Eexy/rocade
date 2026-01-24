@@ -8,7 +8,7 @@ export type GameInfo = {
     storyline?: string,
     summary?: string,
     store_id?: string
-
+    release_date?: number
 }
 
 export type GameGenre = {
