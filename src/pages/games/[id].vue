@@ -10,8 +10,17 @@
                         <div>
                             <h1 class="text-5xl">{{ game.name }}</h1>
                         </div>
-                        <div class="text-muted-foreground flex items-center gap-6">
+                        <div class="text-muted-foreground flex items-center gap-2">
                             <div v-if="releaseDate">{{ releaseDate }}</div>
+                            <template v-if="game.genres">
+                                <div>
+                                    •
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span v-for="genre in game.genres" class="rounded bg-card px-1 capitalize">{{
+                                        genre }}</span>
+                                </div>
+                            </template>
                         </div>
                         <template v-if="game.is_installed">
                             <div class="flex gap-3">
