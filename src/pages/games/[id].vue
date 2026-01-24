@@ -78,7 +78,7 @@ watchEffect(async () => {
     game.value = await invoke('get_game', { gameId: id.value });
 
     if (game.value && game.value.release_date) {
-        releaseDate.value = format(new Date(game.value.release_date), "MMMM dd, yyyy")
+        releaseDate.value = format(new Date(game.value.release_date * 1000), "MMMM dd, yyyy")
     }
 
 })
