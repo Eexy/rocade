@@ -15,6 +15,19 @@ pub struct IgdbImage {
     pub image_id: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct IgdbCompany {
+    pub id: i64,
+    pub name: String,
+    published: Option<Vec<u64>>,
+    developed: Option<Vec<u64>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IgdbInvolvedCompany {
+    company: IgdbCompany,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGameInfo {
     id: u64,
@@ -22,6 +35,7 @@ pub struct IgdbGameInfo {
     cover: IgdbImage,
     genres: Vec<IgdbGenre>,
     storyline: Option<String>,
+    involved_companies: Vec<IgdbInvolvedCompany>,
     summary: Option<String>,
     artworks: Option<Vec<IgdbImage>>,
     first_release_date: i64,
@@ -37,6 +51,8 @@ pub struct IgdbGame {
     pub genres: Vec<IgdbGenre>,
     pub cover: IgdbImage,
     pub artworks: Option<Vec<IgdbImage>>,
+    pub publishers: Vec<IgdbCompany>,
+    pub developers: Vec<IgdbCompany>,
     pub release_date: i64,
 }
 
@@ -84,6 +100,23 @@ impl IgdbApiClient {
             .await
             .map_err(|e| e.to_string())?;
 
+        let mut publishers = Vec::new();
+        let mut developers = Vec::new();
+
+        for involved in &game_info.involved_companies {
+            if let Some(published) = &involved.company.published {
+                if published.contains(&game_info.id) {
+                    publishers.push(involved.company.clone());
+                }
+            }
+
+            if let Some(developed) = &involved.company.developed {
+                if developed.contains(&game_info.id) {
+                    developers.push(involved.company.clone());
+                }
+            }
+        }
+
         let game = IgdbGame {
             name: game_info.name,
             store_id: Some(store_id),
@@ -91,6 +124,8 @@ impl IgdbApiClient {
             storyline: game_info.storyline,
             genres: game_info.genres,
             cover: game_info.cover,
+            publishers,
+            developers,
             artworks: game_info.artworks,
             id: game_info.id,
             release_date: game_info.first_release_date,
@@ -120,6 +155,23 @@ impl IgdbApiClient {
             .map(|game| {
                 let store_id = steam_ids_map.get(&game.id).cloned();
 
+                let mut publishers = Vec::new();
+                let mut developers = Vec::new();
+
+                for involved in game.involved_companies {
+                    if let Some(published) = &involved.company.published {
+                        if published.contains(&game.id) {
+                            publishers.push(involved.company.clone());
+                        }
+                    }
+
+                    if let Some(developed) = &involved.company.developed {
+                        if developed.contains(&game.id) {
+                            developers.push(involved.company.clone());
+                        }
+                    }
+                }
+
                 Ok(IgdbGame {
                     name: game.name,
                     store_id,
@@ -127,6 +179,8 @@ impl IgdbApiClient {
                     storyline: game.storyline,
                     genres: game.genres,
                     cover: game.cover,
+                    developers,
+                    publishers,
                     artworks: game.artworks,
                     id: game.id,
                     release_date: game.first_release_date,
@@ -185,7 +239,7 @@ impl IgdbApiClient {
     async fn get_game_info(&mut self, igdb_game_id: u64) -> Result<IgdbGameInfo, String> {
         const URL: &str = "https://api.igdb.com/v4/games";
         let query = format!(
-            "fields *, genres.name, artworks.image_id, cover.image_id; where id = {}; limit 1;",
+            "fields *, genres.name, artworks.image_id, involved_companies.company.*, cover.image_id; where id = {}; limit 1;",
             igdb_game_id
         );
         let res = self
@@ -208,7 +262,7 @@ impl IgdbApiClient {
         const URL: &str = "https://api.igdb.com/v4/games";
         let ids: Vec<_> = igdb_game_ids.iter().map(|id| id.to_string()).collect();
         let query = format!(
-            r#"fields *, genres.name, artworks.image_id, cover.image_id; where id = ({}); limit {};"#,
+            r#"fields *, genres.name, artworks.image_id, cover.image_id, involved_companies.company.*; where id = ({}); limit {};"#,
             ids.join(","),
             igdb_game_ids.len()
         );
