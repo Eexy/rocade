@@ -9,5 +9,6 @@ export type GameInfo = {
     summary?: string,
     store_id?: string
     release_date?: number
+    developers?: string[]
 }
 
