@@ -34,3 +34,4 @@ pub mod cover;
 pub mod game;
 pub mod game_store;
 pub mod genre;
+pub mod studio;

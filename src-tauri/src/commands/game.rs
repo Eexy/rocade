@@ -6,7 +6,8 @@ use tauri::{async_runtime::Mutex, AppHandle, State};
 use crate::{
     db::{
         artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
-        game_store::GameStoreRepository, genre::GenreRepository, DatabaseState,
+        game_store::GameStoreRepository, genre::GenreRepository, studio::StudioRepository,
+        DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbGame},
     steam::{SteamApiClient, SteamClient},
@@ -23,6 +24,7 @@ pub struct Game {
     artworks: Option<Vec<String>>,
     release_date: Option<i64>,
     genres: Option<Vec<String>>,
+    developers: Option<Vec<Option<String>>>,
 }
 
 #[tauri::command]
@@ -63,6 +65,7 @@ async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Erro
     ArtworkRepository::delete_artworks(&db_state.pool).await?;
     GameStoreRepository::delete_games_store(&db_state.pool).await?;
     GenreRepository::delete_genres(&db_state.pool).await?;
+    StudioRepository::delete_studios(&db_state.pool).await?;
     GameRepository::delete_games(&db_state.pool).await?;
 
     Ok(())
@@ -99,6 +102,7 @@ async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Gam
         .into_iter()
         .map(|game| Game {
             id: game.id,
+            developers: None,
             genres: None,
             name: game.name,
             summary: game.summary,
@@ -142,6 +146,8 @@ async fn insert_games(
         )
         .await?;
 
+        StudioRepository::insert_game_studios(&db_state.pool, id, game.developers).await?;
+
         if let Some(store_id) = game.store_id {
             GameStoreRepository::insert_game_store(&db_state.pool, id, store_id).await?;
         }
@@ -176,10 +182,15 @@ pub async fn get_game(
         .await
         .map_err(|e| e.to_string())?;
 
+    let studios = StudioRepository::get_game_studios(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(Game {
         id: game.id,
         release_date: game.release_date,
         name: game.name,
+        developers: Some(studios.into_iter().map(|studio| studio.name).collect()),
         genres: Some(genres),
         is_installed: Some(is_installed),
         summary: game.summary,
