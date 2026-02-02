@@ -83,6 +83,7 @@ import CardHeader from '@/components/ui/card/CardHeader.vue';
 import { invoke } from '@tauri-apps/api/core';
 import { GameInfo } from '@/types/game';
 import { format } from "date-fns"
+import { getGameById, installGame, uninstallGame } from '@/commands/game.command';
 
 const route = useRoute('/games/[id]');
 const id = computed(() => Number(route.params.id))
@@ -93,7 +94,7 @@ const releaseDate = ref<string | null>(null)
 
 
 watchEffect(async () => {
-    game.value = await invoke('get_game', { gameId: id.value });
+    game.value = await getGameById(id.value);
 
     if (game.value && game.value.release_date) {
         releaseDate.value = format(new Date(game.value.release_date * 1000), "MMMM dd, yyyy")
@@ -115,14 +116,16 @@ async function onDownloadClick() {
     if (!game.value) return
 
     if (!game.value.store_id) return
-    await invoke("install_game", { steamGameId: game.value.store_id })
+
+    await installGame(game.value.store_id)
 }
 
 async function onUninstallClick() {
     if (!game.value) return
 
     if (!game.value.store_id) return
-    await invoke("uninstall_game", { steamGameId: game.value.store_id })
+
+    await uninstallGame(game.value.store_id)
 }
 
 

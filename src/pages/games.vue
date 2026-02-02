@@ -11,20 +11,20 @@
 <script setup lang="ts">
 import { SidebarTrigger, SidebarProvider } from "@/components/ui/sidebar"
 import { onMounted } from "vue";
-import { invoke } from "@tauri-apps/api/core"
 import { GameInfo } from "@/types/game";
 import { useGameStore } from "@/stores/game.store";
 import { storeToRefs } from "pinia";
 import AppSidebar from "@/components/app-sidebar/AppSidebar.vue"
+import { getGames, refreshGames } from "@/commands/game.command";
 
 const { games } = storeToRefs(useGameStore())
 
 onMounted(async () => {
-    let res: GameInfo[] = await invoke("get_games")
+    let res: GameInfo[] = await getGames()
 
     if (!res.length) {
-        await invoke("refresh_games")
-        res = await invoke("get_games");
+        await refreshGames()
+        res = await getGames();
     }
 
     games.value = res
