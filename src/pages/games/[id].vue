@@ -80,7 +80,6 @@ import { computed, ref, watchEffect } from 'vue';
 import { useRoute } from 'vue-router';
 import CardTitle from '@/components/ui/card/CardTitle.vue';
 import CardHeader from '@/components/ui/card/CardHeader.vue';
-import { invoke } from '@tauri-apps/api/core';
 import { GameInfo } from '@/types/game';
 import { format } from "date-fns"
 import { getGameById, installGame, uninstallGame } from '@/commands/game.command';
