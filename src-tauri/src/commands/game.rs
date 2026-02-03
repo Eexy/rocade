@@ -169,7 +169,11 @@ pub struct GameInfo {
 }
 
 #[tauri::command]
-pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Result<Game, String> {
+pub async fn get_game(
+    steam_client: State<'_, SteamClient>,
+    db_state: State<'_, DatabaseState>,
+    game_id: i64,
+) -> Result<Game, String> {
     let game = sqlx::query_as!(GameInfo,
         "
 select games.id as id, games.name as name, games_store.store_id as store_id, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios, group_concat(distinct artworks.artwork_id) as artworks, group_concat(distinct covers.cover_id) as covers
@@ -185,6 +189,12 @@ where games.id = ?
 group by games.id, games.name, games_store.store_id, games.summary, games.release_date
     ", game_id).fetch_one(&db_state.pool).await.map_err(|e| e.to_string())?;
 
+    let mut is_installed = false;
+
+    if let Some(store_id) = game.store_id.clone() {
+        is_installed = steam_client.is_steam_game_install(store_id);
+    }
+
     Ok(Game {
         id: game.id,
         release_date: game.release_date,
@@ -199,7 +209,7 @@ group by games.id, games.name, games_store.store_id, games.summary, games.releas
                 .map(|val| val.to_string())
                 .collect::<Vec<_>>()
         }),
-        is_installed: None,
+        is_installed: Some(is_installed),
         summary: game.summary,
         artworks: game.artworks.map(|val| {
             val.split(',')
