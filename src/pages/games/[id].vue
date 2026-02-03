@@ -116,7 +116,7 @@ async function onDownloadClick() {
 
     if (!game.value.store_id) return
 
-    await installGame(game.value.store_id)
+    await installGame(game.value.id)
 }
 
 async function onUninstallClick() {
@@ -124,7 +124,7 @@ async function onUninstallClick() {
 
     if (!game.value.store_id) return
 
-    await uninstallGame(game.value.store_id)
+    await uninstallGame(game.value.id)
 }
 
 
