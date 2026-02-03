@@ -162,6 +162,7 @@ pub struct GameInfo {
     summary: Option<String>,
     artworks: Option<String>,
     covers: Option<String>,
+    store_id: Option<String>,
     release_date: Option<i64>,
     genres: Option<String>,
     studios: Option<String>,
@@ -171,7 +172,7 @@ pub struct GameInfo {
 pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Result<Game, String> {
     let game = sqlx::query_as!(GameInfo,
         "
-select games.id as id, games.name as name, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios, group_concat(distinct artworks.artwork_id) as artworks, group_concat(distinct covers.cover_id) as covers
+select games.id as id, games.name as name, games_store.store_id as store_id, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios, group_concat(distinct artworks.artwork_id) as artworks, group_concat(distinct covers.cover_id) as covers
 from games
 inner join games_studios on games.id = games_studios.game_id
 inner join studios on games_studios.studio_id = studios.id
@@ -179,8 +180,9 @@ inner join games_genres on games.id = games_genres.game_id
 inner join genres on games_genres.genre_id = genres.id
 inner join artworks on artworks.game_id = games.id
 inner join covers on covers.game_id = games.id
+inner join games_store on games_store.game_id = games.id
 where games.id = ?
-group by games.id, games.name, games.summary, games.release_date
+group by games.id, games.name, games_store.store_id, games.summary, games.release_date
     ", game_id).fetch_one(&db_state.pool).await.map_err(|e| e.to_string())?;
 
     Ok(Game {
@@ -210,7 +212,7 @@ group by games.id, games.name, games.summary, games.release_date
                 .collect::<Vec<_>>()
                 .pop()
         }),
-        store_id: None,
+        store_id: game.store_id,
     })
 }
 
