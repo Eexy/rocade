@@ -160,6 +160,7 @@ pub struct GameInfo {
     id: i64,
     name: String,
     summary: Option<String>,
+    artworks: Option<String>,
     release_date: Option<i64>,
     genres: Option<String>,
     studios: Option<String>,
@@ -169,12 +170,13 @@ pub struct GameInfo {
 pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Result<Game, String> {
     let game = sqlx::query_as!(GameInfo,
         "
-select games.id as id, games.name as name, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios
+select games.id as id, games.name as name, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios, group_concat(distinct artworks.artwork_id) as artworks
 from games
 inner join games_studios on games.id = games_studios.game_id
 inner join studios on games_studios.studio_id = studios.id
 inner join games_genres on games.id = games_genres.game_id
 inner join genres on games_genres.genre_id = genres.id
+inner join artworks on artworks.game_id = games.id
 where games.id = ?
 group by games.id, games.name, games.summary, games.release_date
     ", game_id).fetch_one(&db_state.pool).await.map_err(|e| e.to_string())?;
@@ -195,7 +197,11 @@ group by games.id, games.name, games.summary, games.release_date
         }),
         is_installed: None,
         summary: game.summary,
-        artworks: None,
+        artworks: game.artworks.map(|val| {
+            val.split(',')
+                .map(|val| val.to_string())
+                .collect::<Vec<_>>()
+        }),
         cover: None,
         store_id: None,
     })
