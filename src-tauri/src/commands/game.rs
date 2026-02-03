@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 
-use serde::Serialize;
-use tauri::{async_runtime::Mutex, AppHandle, State};
-
 use crate::{
     db::{
         artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
@@ -12,6 +9,8 @@ use crate::{
     igdb::{IgdbApiClient, IgdbGame},
     steam::{SteamApiClient, SteamClient},
 };
+use serde::Serialize;
+use tauri::{async_runtime::Mutex, AppHandle, State};
 
 #[derive(Serialize)]
 pub struct Game {
@@ -156,57 +155,49 @@ async fn insert_games(
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct GameInfo {
+    id: i64,
+    name: String,
+    summary: Option<String>,
+    release_date: Option<i64>,
+    genres: Option<String>,
+    studios: Option<String>,
+}
+
 #[tauri::command]
-pub async fn get_game(
-    steam_client: State<'_, SteamClient>,
-    db_state: State<'_, DatabaseState>,
-    game_id: i64,
-) -> Result<Game, String> {
-    let game = GameRepository::get_game_by_id(&db_state.pool, game_id)
-        .await
-        .map_err(|e| e.to_string())?;
-    let cover = CoverRepository::get_game_cover(&db_state.pool, game_id)
-        .await
-        .map_err(|e| e.to_string())?;
-    let artworks = ArtworkRepository::get_game_artworks(&db_state.pool, game_id)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let game_store = GameStoreRepository::get_game_store(&db_state.pool, game_id)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let is_installed = steam_client.is_steam_game_install(game_store.store_id.clone());
-
-    let genres = GenreRepository::get_game_genre(&db_state.pool, game_id)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let studios = StudioRepository::get_game_studios(&db_state.pool, game_id)
-        .await
-        .map_err(|e| e.to_string())?;
+pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Result<Game, String> {
+    let game = sqlx::query_as!(GameInfo,
+        "
+select games.id as id, games.name as name, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios
+from games
+inner join games_studios on games.id = games_studios.game_id
+inner join studios on games_studios.studio_id = studios.id
+inner join games_genres on games.id = games_genres.game_id
+inner join genres on games_genres.genre_id = genres.id
+where games.id = ?
+group by games.id, games.name, games.summary, games.release_date
+    ", game_id).fetch_one(&db_state.pool).await.map_err(|e| e.to_string())?;
 
     Ok(Game {
         id: game.id,
         release_date: game.release_date,
         name: game.name,
-        developers: Some(
-            studios
-                .into_iter()
-                .map(|studio| Some(studio.name))
-                .collect(),
-        ),
-        genres: Some(genres),
-        is_installed: Some(is_installed),
+        developers: game.studios.map(|val| {
+            val.split(',')
+                .map(|val| Some(val.to_string()))
+                .collect::<Vec<_>>()
+        }),
+        genres: game.genres.map(|val| {
+            val.split(',')
+                .map(|val| val.to_string())
+                .collect::<Vec<_>>()
+        }),
+        is_installed: None,
         summary: game.summary,
-        artworks: Some(
-            artworks
-                .into_iter()
-                .map(|artwork| artwork.artwork_id)
-                .collect(),
-        ),
-        cover: Some(cover.cover_id),
-        store_id: Some(game_store.store_id),
+        artworks: None,
+        cover: None,
+        store_id: None,
     })
 }
 
