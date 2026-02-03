@@ -7,7 +7,7 @@ use crate::igdb::IgdbCompany;
 pub struct StudioRow {
     id: i64,
     igdb_id: i64,
-    pub name: Option<String>,
+    pub name: String,
 }
 
 #[derive(Debug, FromRow)]

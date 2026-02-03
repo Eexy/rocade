@@ -190,7 +190,12 @@ pub async fn get_game(
         id: game.id,
         release_date: game.release_date,
         name: game.name,
-        developers: Some(studios.into_iter().map(|studio| studio.name).collect()),
+        developers: Some(
+            studios
+                .into_iter()
+                .map(|studio| Some(studio.name))
+                .collect(),
+        ),
         genres: Some(genres),
         is_installed: Some(is_installed),
         summary: game.summary,
