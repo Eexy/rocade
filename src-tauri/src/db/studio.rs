@@ -4,37 +4,37 @@ use sqlx::{Pool, Sqlite};
 use crate::igdb::IgdbCompany;
 
 #[derive(Debug, FromRow)]
-pub struct StudioRow {
+pub struct CompanyRow {
     id: i64,
     igdb_id: i64,
     pub name: String,
 }
 
 #[derive(Debug, FromRow)]
-pub struct GameStudioRow {
+pub struct DevelopedByRow {
     id: i64,
     game_id: i64,
     studio_id: i64,
 }
 
-pub struct StudioRepository {}
+pub struct CompanyRepository {}
 
-impl StudioRepository {
-    pub async fn delete_studios(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
+impl CompanyRepository {
+    pub async fn delete_companies(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
         let mut conn = pool.acquire().await?;
 
-        sqlx::query!("delete from games_studios")
+        sqlx::query!("delete from developed_by")
             .execute(&mut *conn)
             .await?;
 
-        sqlx::query!("delete from studios")
+        sqlx::query!("delete from companies")
             .execute(&mut *conn)
             .await?;
 
         Ok(())
     }
 
-    pub async fn insert_game_studios(
+    pub async fn insert_companies(
         pool: &Pool<Sqlite>,
         game_id: i64,
         studios: Vec<IgdbCompany>,
@@ -42,7 +42,7 @@ impl StudioRepository {
         let mut conn = pool.acquire().await?;
 
         let mut studios_query_builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("insert into studios (igdb_id, name) ");
+            QueryBuilder::new("insert into companies (igdb_id, name) ");
         studios_query_builder.push_values(&studios, |mut query_builder, studio| {
             query_builder.push_bind(studio.id).push_bind(&studio.name);
         });
@@ -52,12 +52,14 @@ impl StudioRepository {
         let studios_insertion_query = studios_query_builder.build();
         studios_insertion_query.execute(&mut *conn).await?;
 
-        let inserted_studios =
-            StudioRepository::get_studios(pool, studios.iter().map(|studio| studio.id).collect())
-                .await?;
+        let inserted_studios = CompanyRepository::get_companies(
+            pool,
+            studios.iter().map(|studio| studio.id).collect(),
+        )
+        .await?;
 
         let mut game_studios_query_builder: QueryBuilder<Sqlite> =
-            QueryBuilder::new("insert into games_studios(game_id, studio_id) ");
+            QueryBuilder::new("insert into developed_by(game_id, studio_id) ");
 
         game_studios_query_builder.push_values(&inserted_studios, |mut query_builder, studio| {
             query_builder.push_bind(game_id).push_bind(studio.id);
@@ -69,14 +71,14 @@ impl StudioRepository {
         Ok(())
     }
 
-    pub async fn get_studios(
+    pub async fn get_companies(
         pool: &Pool<Sqlite>,
         studio_ids: Vec<i64>,
-    ) -> Result<Vec<StudioRow>, sqlx::Error> {
+    ) -> Result<Vec<CompanyRow>, sqlx::Error> {
         let mut conn = pool.acquire().await?;
 
         if studio_ids.is_empty() {
-            let result = sqlx::query_as!(StudioRow, r#"select * from studios"#)
+            let result = sqlx::query_as!(CompanyRow, r#"select * from companies"#)
                 .fetch_all(&mut *conn)
                 .await?;
 
@@ -84,9 +86,12 @@ impl StudioRepository {
         }
 
         let placeholders = vec!["?"; studio_ids.len()].join(", ");
-        let query_str = format!("select * from studios where igdb_id in ({})", placeholders);
+        let query_str = format!(
+            "select * from companies where igdb_id in ({})",
+            placeholders
+        );
 
-        let mut query = sqlx::query_as::<_, StudioRow>(&query_str);
+        let mut query = sqlx::query_as::<_, CompanyRow>(&query_str);
 
         for genre in &studio_ids {
             query = query.bind(genre);
@@ -97,33 +102,36 @@ impl StudioRepository {
         Ok(result)
     }
 
-    pub async fn get_game_studios(
+    pub async fn get_game_developes(
         pool: &Pool<Sqlite>,
         game_id: i64,
-    ) -> Result<Vec<StudioRow>, sqlx::Error> {
+    ) -> Result<Vec<CompanyRow>, sqlx::Error> {
         let mut conn = pool.acquire().await?;
 
-        let game_studios = sqlx::query_as!(
-            GameStudioRow,
-            "select * from games_studios where game_id = ?",
+        let developpers = sqlx::query_as!(
+            DevelopedByRow,
+            "select * from developed_by where game_id = ?",
             game_id
         )
         .fetch_all(&mut *conn)
         .await?;
 
-        let studio_ids: Vec<_> = game_studios.iter().map(|studio| studio.studio_id).collect();
+        let companies_ids: Vec<_> = developpers
+            .iter()
+            .map(|company| company.studio_id)
+            .collect();
 
-        if studio_ids.is_empty() {
+        if companies_ids.is_empty() {
             return Ok(vec![]);
         }
 
-        let placeholders = vec!["?"; studio_ids.len()].join(", ");
-        let query_str = format!("select * from studios where id in ({})", placeholders);
+        let placeholders = vec!["?"; companies_ids.len()].join(", ");
+        let query_str = format!("select * from companies where id in ({})", placeholders);
 
-        let mut query = sqlx::query_as::<_, StudioRow>(&query_str);
+        let mut query = sqlx::query_as::<_, CompanyRow>(&query_str);
 
-        for studio_id in &studio_ids {
-            query = query.bind(studio_id);
+        for company_id in &companies_ids {
+            query = query.bind(company_id);
         }
 
         let result = query.fetch_all(&mut *conn).await?;

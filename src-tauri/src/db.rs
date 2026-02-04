@@ -45,7 +45,7 @@ impl DatabaseState {
             from games_store;
 
             delete
-            from games_studios;
+            from developed_by;
 
             delete
             from games;
@@ -54,7 +54,7 @@ impl DatabaseState {
             from genres;
 
             delete
-            from studios;
+            from companies;
             "
         )
         .execute(&self.pool)

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     db::{
         artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
-        game_store::GameStoreRepository, genre::GenreRepository, studio::StudioRepository,
+        game_store::GameStoreRepository, genre::GenreRepository, studio::CompanyRepository,
         DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbGame},
@@ -138,7 +138,7 @@ async fn insert_games(
         )
         .await?;
 
-        StudioRepository::insert_game_studios(&db_state.pool, id, game.developers).await?;
+        CompanyRepository::insert_companies(&db_state.pool, id, game.developers).await?;
 
         if let Some(store_id) = game.store_id {
             GameStoreRepository::insert_game_store(&db_state.pool, id, store_id).await?;
@@ -169,10 +169,10 @@ pub async fn get_game(
 ) -> Result<Game, String> {
     let game = sqlx::query_as!(GameInfo,
         "
-select games.id as id, games.name as name, games_store.store_id as store_id, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct studios.name) as studios, group_concat(distinct artworks.artwork_id) as artworks, group_concat(distinct covers.cover_id) as covers
+select games.id as id, games.name as name, games_store.store_id as store_id, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct companies.name) as studios, group_concat(distinct artworks.artwork_id) as artworks, group_concat(distinct covers.cover_id) as covers
 from games
-inner join games_studios on games.id = games_studios.game_id
-inner join studios on games_studios.studio_id = studios.id
+inner join developed_by on games.id = developed_by.game_id
+inner join companies on developed_by.studio_id = companies.id
 inner join games_genres on games.id = games_genres.game_id
 inner join genres on games_genres.genre_id = genres.id
 inner join artworks on artworks.game_id = games.id
