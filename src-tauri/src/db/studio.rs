@@ -10,30 +10,9 @@ pub struct CompanyRow {
     pub name: String,
 }
 
-#[derive(Debug, FromRow)]
-pub struct DevelopedByRow {
-    id: i64,
-    game_id: i64,
-    studio_id: i64,
-}
-
 pub struct CompanyRepository {}
 
 impl CompanyRepository {
-    pub async fn delete_companies(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        sqlx::query!("delete from developed_by")
-            .execute(&mut *conn)
-            .await?;
-
-        sqlx::query!("delete from companies")
-            .execute(&mut *conn)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn insert_companies(
         pool: &Pool<Sqlite>,
         game_id: i64,
@@ -95,43 +74,6 @@ impl CompanyRepository {
 
         for genre in &studio_ids {
             query = query.bind(genre);
-        }
-
-        let result = query.fetch_all(&mut *conn).await?;
-
-        Ok(result)
-    }
-
-    pub async fn get_game_developes(
-        pool: &Pool<Sqlite>,
-        game_id: i64,
-    ) -> Result<Vec<CompanyRow>, sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        let developpers = sqlx::query_as!(
-            DevelopedByRow,
-            "select * from developed_by where game_id = ?",
-            game_id
-        )
-        .fetch_all(&mut *conn)
-        .await?;
-
-        let companies_ids: Vec<_> = developpers
-            .iter()
-            .map(|company| company.studio_id)
-            .collect();
-
-        if companies_ids.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let placeholders = vec!["?"; companies_ids.len()].join(", ");
-        let query_str = format!("select * from companies where id in ({})", placeholders);
-
-        let mut query = sqlx::query_as::<_, CompanyRow>(&query_str);
-
-        for company_id in &companies_ids {
-            query = query.bind(company_id);
         }
 
         let result = query.fetch_all(&mut *conn).await?;
