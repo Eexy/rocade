@@ -60,14 +60,7 @@ pub async fn refresh_games(
 }
 
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
-    CoverRepository::delete_covers(&db_state.pool).await?;
-    ArtworkRepository::delete_artworks(&db_state.pool).await?;
-    GameStoreRepository::delete_games_store(&db_state.pool).await?;
-    GenreRepository::delete_genres(&db_state.pool).await?;
-    StudioRepository::delete_studios(&db_state.pool).await?;
-    GameRepository::delete_games(&db_state.pool).await?;
-
-    Ok(())
+    db_state.clean().await
 }
 
 async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, sqlx::Error> {

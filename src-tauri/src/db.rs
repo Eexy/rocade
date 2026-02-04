@@ -27,6 +27,41 @@ impl DatabaseState {
 
         Ok(Self { pool: pool })
     }
+
+    /// Empty all database
+    pub async fn clean(&self) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "
+            delete
+            from artworks;
+
+            delete
+            from covers;
+
+            delete
+            from games_genres;
+
+            delete
+            from games_store;
+
+            delete
+            from games_studios;
+
+            delete
+            from games;
+
+            delete
+            from genres;
+
+            delete
+            from studios;
+            "
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 pub mod artwork;
