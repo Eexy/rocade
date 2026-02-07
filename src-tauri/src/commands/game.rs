@@ -1,11 +1,6 @@
 use crate::{
     db::{
-        artwork::ArtworkRepository,
-        cover::CoverRepository,
         game::{Game, GameRepository},
-        game_store::GameStoreRepository,
-        genre::GenreRepository,
-        studio::CompanyRepository,
         DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbGame},
@@ -55,35 +50,8 @@ async fn insert_games(
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
     for game in games {
-        let id =
-            GameRepository::insert_game(&db_state.pool, game.name, game.summary, game.release_date)
-                .await?;
-
-        CoverRepository::insert_cover(&db_state.pool, id, game.cover.image_id).await?;
-
-        if let Some(artworks) = game.artworks {
-            if !artworks.is_empty() {
-                let artworks_ids: Vec<_> = artworks
-                    .into_iter()
-                    .map(|artwork| artwork.image_id)
-                    .collect();
-
-                ArtworkRepository::bulk_insert_artworks(&db_state.pool, id, artworks_ids).await?;
-            }
-        }
-
-        GenreRepository::insert_game_genres(
-            &db_state.pool,
-            id,
-            game.genres.iter().map(|genre| genre.name.clone()).collect(),
-        )
-        .await?;
-
-        CompanyRepository::insert_companies(&db_state.pool, id, game.developers).await?;
-
-        if let Some(store_id) = game.store_id {
-            GameStoreRepository::insert_game_store(&db_state.pool, id, store_id).await?;
-        }
+        let id = GameRepository::insert_complete_game(&db_state.pool, game).await?;
+        dbg!(&id);
     }
 
     Ok(())

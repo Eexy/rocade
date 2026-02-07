@@ -1,5 +1,11 @@
+use futures::stream::SelectNextSome;
 use serde::Serialize;
 use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
+
+use crate::{
+    db::{artwork, game},
+    igdb::IgdbGame,
+};
 
 #[derive(Serialize)]
 pub struct Game {
@@ -134,6 +140,91 @@ order by games.name
         .await?;
 
         Ok(game)
+    }
+
+    /// Insert a game with all its informations : covers, genres...
+    pub async fn insert_complete_game(
+        pool: &Pool<Sqlite>,
+        game: IgdbGame,
+    ) -> Result<i64, sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let id = sqlx::query_scalar::<_, i64>(
+            r#"insert into games (name, summary, release_date) values ( ?, ?, ?) returning id"#,
+        )
+        .bind(&game.name)
+        .bind(&game.summary)
+        .bind(&game.release_date)
+        .fetch_one(pool)
+        .await?;
+
+        dbg!(&id);
+
+        // Insert store
+        sqlx::query("INSERT INTO games_store (game_id, store_id) VALUES (?, ?)")
+            .bind(id)
+            .bind(&game.store_id)
+            .execute(&mut *tx)
+            .await?;
+
+        // Insert cover if provided
+        sqlx::query("INSERT INTO covers (game_id, cover_id) VALUES (?, ?)")
+            .bind(id)
+            .bind(&game.cover.image_id)
+            .execute(&mut *tx)
+            .await?;
+
+        // Insert artworks
+        if let Some(artworks) = game.artworks {
+            for artwork in artworks {
+                sqlx::query("INSERT INTO artworks (game_id, artwork_id) VALUES (?, ?)")
+                    .bind(id)
+                    .bind(&artwork.image_id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+
+        // Insert genres
+        for genre in game.genres {
+            // Insert genre if it doesn't exist (ON CONFLICT DO UPDATE NAME)
+            let genre_id = sqlx::query_scalar::<_, i64>("INSERT INTO genres (name) VALUES (?) ON CONFLICT(name) DO update set name = name returning id")
+                .bind(&genre.name)
+                .fetch_one(&mut *tx)
+                .await?;
+
+            dbg!(&genre_id);
+
+            sqlx::query("INSERT INTO games_genres (game_id, genre_id) VALUES (?, ?)")
+                .bind(id)
+                .bind(genre_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        // Insert developers
+        for developer in game.developers {
+            let company_id = sqlx::query_scalar::<_, i64>(
+                "INSERT INTO companies (igdb_id, name) VALUES (?, ?) 
+             ON CONFLICT(igdb_id) DO UPDATE SET igdb_id = igdb_id 
+             RETURNING id",
+            )
+            .bind(developer.id)
+            .bind(&developer.name)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            dbg!(&company_id);
+
+            sqlx::query("INSERT INTO developed_by (game_id, studio_id) VALUES (?, ?)")
+                .bind(id)
+                .bind(company_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        tx.commit().await?;
+
+        Ok(id)
     }
 
     pub async fn insert_game(
