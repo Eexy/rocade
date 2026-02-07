@@ -10,16 +10,6 @@ pub struct CoverRow {
 pub struct CoverRepository {}
 
 impl CoverRepository {
-    pub async fn delete_covers(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        sqlx::query!("delete from covers")
-            .execute(&mut *conn)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn get_covers(pool: &Pool<Sqlite>) -> Result<Vec<CoverRow>, sqlx::Error> {
         let mut conn = pool.acquire().await?;
 
@@ -47,22 +37,5 @@ impl CoverRepository {
         .last_insert_rowid();
 
         Ok(id)
-    }
-
-    pub async fn get_game_cover(
-        pool: &Pool<Sqlite>,
-        game_id: i64,
-    ) -> Result<CoverRow, sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        let cover = sqlx::query_as!(
-            CoverRow,
-            r#"select * from covers where game_id = ?"#,
-            game_id,
-        )
-        .fetch_one(&mut *conn)
-        .await?;
-
-        Ok(cover)
     }
 }
