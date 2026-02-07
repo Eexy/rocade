@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     db::{
         artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
@@ -23,16 +21,45 @@ pub struct Game {
     artworks: Option<Vec<String>>,
     release_date: Option<i64>,
     genres: Option<Vec<String>>,
-    developers: Option<Vec<Option<String>>>,
+    developers: Option<Vec<String>>,
 }
 
 #[tauri::command]
 pub async fn get_games(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, String> {
-    let games = get_games_from_db(db_state.clone())
+    let games = GameRepository::get_games(&db_state.pool)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(games)
+    let parsed_games = games
+        .into_iter()
+        .map(|game| Game {
+            id: game.id,
+            release_date: game.release_date,
+            name: game.name,
+            developers: game
+                .studios
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            genres: game
+                .genres
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            is_installed: None,
+            summary: game.summary,
+            artworks: game
+                .artworks
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            cover: game.covers.as_ref().and_then(|s| {
+                serde_json::from_str::<Vec<String>>(s)
+                    .ok()
+                    .and_then(|mut v| v.pop())
+            }),
+            store_id: game.store_id,
+        })
+        .collect();
+
+    Ok(parsed_games)
 }
 
 #[tauri::command]
@@ -61,52 +88,6 @@ pub async fn refresh_games(
 
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
     db_state.clean().await
-}
-
-async fn get_games_from_db(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, sqlx::Error> {
-    let games = GameRepository::get_games(&db_state.pool).await?;
-
-    let covers = CoverRepository::get_covers(&db_state.pool).await?;
-    let mut covers_map = HashMap::new();
-
-    for cover in covers {
-        covers_map.insert(cover.game_id, cover.cover_id);
-    }
-
-    let artworks = ArtworkRepository::get_artworks(&db_state.pool).await?;
-    let mut artworks_map = HashMap::new();
-
-    for artwork in artworks {
-        artworks_map
-            .entry(artwork.game_id)
-            .or_insert_with(Vec::new)
-            .push(artwork.artwork_id);
-    }
-
-    let games_stores = GameStoreRepository::get_games_store(&db_state.pool).await?;
-    let mut games_stores_map = HashMap::new();
-
-    for game_store in games_stores {
-        games_stores_map.insert(game_store.game_id, game_store.store_id);
-    }
-
-    let games: Vec<Game> = games
-        .into_iter()
-        .map(|game| Game {
-            id: game.id,
-            developers: None,
-            genres: None,
-            name: game.name,
-            summary: game.summary,
-            is_installed: Some(false),
-            cover: covers_map.get(&game.id).cloned(),
-            artworks: artworks_map.get(&game.id).cloned(),
-            store_id: games_stores_map.get(&game.id).cloned(),
-            release_date: game.release_date,
-        })
-        .collect();
-
-    Ok(games)
 }
 
 async fn insert_games(
@@ -168,28 +149,24 @@ pub async fn get_game(
         id: game.id,
         release_date: game.release_date,
         name: game.name,
-        developers: game.studios.map(|val| {
-            val.split(',')
-                .map(|val| Some(val.to_string()))
-                .collect::<Vec<_>>()
-        }),
-        genres: game.genres.map(|val| {
-            val.split(',')
-                .map(|val| val.to_string())
-                .collect::<Vec<_>>()
-        }),
+        developers: game
+            .studios
+            .as_ref()
+            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+        genres: game
+            .genres
+            .as_ref()
+            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
         is_installed: Some(is_installed),
         summary: game.summary,
-        artworks: game.artworks.map(|val| {
-            val.split(',')
-                .map(|val| val.to_string())
-                .collect::<Vec<_>>()
-        }),
-        cover: game.covers.and_then(|val| {
-            val.split(',')
-                .map(|val| val.to_string())
-                .collect::<Vec<_>>()
-                .pop()
+        artworks: game
+            .artworks
+            .as_ref()
+            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+        cover: game.covers.as_ref().and_then(|s| {
+            serde_json::from_str::<Vec<String>>(s)
+                .ok()
+                .and_then(|mut v| v.pop())
         }),
         store_id: game.store_id,
     })
