@@ -1,28 +1,17 @@
 use crate::{
     db::{
-        artwork::ArtworkRepository, cover::CoverRepository, game::GameRepository,
-        game_store::GameStoreRepository, genre::GenreRepository, studio::CompanyRepository,
+        artwork::ArtworkRepository,
+        cover::CoverRepository,
+        game::{Game, GameRepository},
+        game_store::GameStoreRepository,
+        genre::GenreRepository,
+        studio::CompanyRepository,
         DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbGame},
     steam::{SteamApiClient, SteamClient},
 };
-use serde::Serialize;
 use tauri::{async_runtime::Mutex, AppHandle, State};
-
-#[derive(Serialize)]
-pub struct Game {
-    id: i64,
-    name: String,
-    summary: Option<String>,
-    store_id: Option<String>,
-    cover: Option<String>,
-    is_installed: Option<bool>,
-    artworks: Option<Vec<String>>,
-    release_date: Option<i64>,
-    genres: Option<Vec<String>>,
-    developers: Option<Vec<String>>,
-}
 
 #[tauri::command]
 pub async fn get_games(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, String> {
@@ -30,36 +19,7 @@ pub async fn get_games(db_state: State<'_, DatabaseState>) -> Result<Vec<Game>, 
         .await
         .map_err(|e| e.to_string())?;
 
-    let parsed_games = games
-        .into_iter()
-        .map(|game| Game {
-            id: game.id,
-            release_date: game.release_date,
-            name: game.name,
-            developers: game
-                .studios
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-            genres: game
-                .genres
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-            is_installed: None,
-            summary: game.summary,
-            artworks: game
-                .artworks
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-            cover: game.covers.as_ref().and_then(|s| {
-                serde_json::from_str::<Vec<String>>(s)
-                    .ok()
-                    .and_then(|mut v| v.pop())
-            }),
-            store_id: game.store_id,
-        })
-        .collect();
-
-    Ok(parsed_games)
+    Ok(games)
 }
 
 #[tauri::command]
@@ -135,7 +95,7 @@ pub async fn get_game(
     db_state: State<'_, DatabaseState>,
     game_id: i64,
 ) -> Result<Game, String> {
-    let game = GameRepository::get_game_by_id(&db_state.pool, game_id)
+    let mut game = GameRepository::get_game_by_id(&db_state.pool, game_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -145,31 +105,9 @@ pub async fn get_game(
         is_installed = steam_client.is_steam_game_install(store_id);
     }
 
-    Ok(Game {
-        id: game.id,
-        release_date: game.release_date,
-        name: game.name,
-        developers: game
-            .studios
-            .as_ref()
-            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-        genres: game
-            .genres
-            .as_ref()
-            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-        is_installed: Some(is_installed),
-        summary: game.summary,
-        artworks: game
-            .artworks
-            .as_ref()
-            .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-        cover: game.covers.as_ref().and_then(|s| {
-            serde_json::from_str::<Vec<String>>(s)
-                .ok()
-                .and_then(|mut v| v.pop())
-        }),
-        store_id: game.store_id,
-    })
+    game.is_installed = Some(is_installed);
+
+    Ok(game)
 }
 
 #[tauri::command]
