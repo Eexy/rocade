@@ -148,39 +148,15 @@ async fn insert_games(
     Ok(())
 }
 
-#[derive(Debug)]
-pub struct GameInfo {
-    id: i64,
-    name: String,
-    summary: Option<String>,
-    artworks: Option<String>,
-    covers: Option<String>,
-    store_id: Option<String>,
-    release_date: Option<i64>,
-    genres: Option<String>,
-    studios: Option<String>,
-}
-
 #[tauri::command]
 pub async fn get_game(
     steam_client: State<'_, SteamClient>,
     db_state: State<'_, DatabaseState>,
     game_id: i64,
 ) -> Result<Game, String> {
-    let game = sqlx::query_as!(GameInfo,
-        "
-select games.id as id, games.name as name, games_store.store_id as store_id, summary, release_date, group_concat(distinct genres.name) as genres, group_concat(distinct companies.name) as studios, group_concat(distinct artworks.artwork_id) as artworks, group_concat(distinct covers.cover_id) as covers
-from games
-inner join developed_by on games.id = developed_by.game_id
-inner join companies on developed_by.studio_id = companies.id
-inner join games_genres on games.id = games_genres.game_id
-inner join genres on games_genres.genre_id = genres.id
-inner join artworks on artworks.game_id = games.id
-inner join covers on covers.game_id = games.id
-inner join games_store on games_store.game_id = games.id
-where games.id = ?
-group by games.id, games.name, games_store.store_id, games.summary, games.release_date
-    ", game_id).fetch_one(&db_state.pool).await.map_err(|e| e.to_string())?;
+    let game = GameRepository::get_game_by_id(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let mut is_installed = false;
 
