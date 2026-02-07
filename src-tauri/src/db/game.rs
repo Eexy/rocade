@@ -1,14 +1,6 @@
 use serde::Serialize;
 use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
 
-#[derive(sqlx::FromRow, Debug)]
-pub struct GameRow {
-    pub id: i64,
-    pub name: String,
-    pub summary: Option<String>,
-    pub release_date: Option<i64>,
-}
-
 #[derive(Serialize)]
 pub struct Game {
     pub id: i64,
