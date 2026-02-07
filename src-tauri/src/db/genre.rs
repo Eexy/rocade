@@ -7,30 +7,9 @@ pub struct GenreRow {
     name: String,
 }
 
-#[derive(Debug, FromRow)]
-pub struct GameGenreRow {
-    id: i64,
-    game_id: i64,
-    genre_id: i64,
-}
-
 pub struct GenreRepository {}
 
 impl GenreRepository {
-    pub async fn delete_genres(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        sqlx::query!("delete from games_genres")
-            .execute(&mut *conn)
-            .await?;
-
-        sqlx::query!("delete from genres")
-            .execute(&mut *conn)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn insert_game_genres(
         pool: &Pool<Sqlite>,
         game_id: i64,
@@ -90,39 +69,5 @@ impl GenreRepository {
         let result = query.fetch_all(&mut *conn).await?;
 
         Ok(result)
-    }
-
-    pub async fn get_game_genre(
-        pool: &Pool<Sqlite>,
-        game_id: i64,
-    ) -> Result<Vec<String>, sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        let game_genres = sqlx::query_as!(
-            GameGenreRow,
-            "select * from games_genres where game_id = ?",
-            game_id
-        )
-        .fetch_all(&mut *conn)
-        .await?;
-
-        let genre_ids: Vec<_> = game_genres.iter().map(|genre| genre.genre_id).collect();
-
-        if genre_ids.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let placeholders = vec!["?"; genre_ids.len()].join(", ");
-        let query_str = format!("select * from genres where id in ({})", placeholders);
-
-        let mut query = sqlx::query_as::<_, GenreRow>(&query_str);
-
-        for genre_id in &genre_ids {
-            query = query.bind(genre_id);
-        }
-
-        let result = query.fetch_all(&mut *conn).await?;
-
-        Ok(result.into_iter().map(|genre| genre.name).collect())
     }
 }
