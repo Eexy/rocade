@@ -1,11 +1,7 @@
-use futures::stream::SelectNextSome;
 use serde::Serialize;
 use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
 
-use crate::{
-    db::{artwork, game},
-    igdb::IgdbGame,
-};
+use crate::igdb::IgdbGame;
 
 #[derive(Serialize)]
 pub struct Game {
@@ -223,27 +219,6 @@ order by games.name
         }
 
         tx.commit().await?;
-
-        Ok(id)
-    }
-
-    pub async fn insert_game(
-        pool: &Pool<Sqlite>,
-        name: String,
-        summary: Option<String>,
-        release_date: i64,
-    ) -> Result<i64, sqlx::Error> {
-        let mut conn = pool.acquire().await?;
-
-        let id = sqlx::query!(
-            r#"insert into games (name, summary, release_date) values ( ?1, ?2, ?3)"#,
-            name,
-            summary,
-            release_date
-        )
-        .execute(&mut *conn)
-        .await?
-        .last_insert_rowid();
 
         Ok(id)
     }
