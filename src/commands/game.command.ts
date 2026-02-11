@@ -1,8 +1,12 @@
 import { GameInfo } from "@/types/game";
 import { invoke } from "@tauri-apps/api/core";
 
-export async function getGames(): Promise<GameInfo[]> {
-    return await invoke("get_games")
+type GameQuery = {
+    name?: string
+}
+
+export async function getGames(query?: GameQuery): Promise<GameInfo[]> {
+    return await invoke("get_games", { query })
 }
 
 export async function getGameById(gameId: number): Promise<GameInfo> {
