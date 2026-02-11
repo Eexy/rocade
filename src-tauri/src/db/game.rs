@@ -35,8 +35,8 @@ select
 from games
 inner join developed_by on games.id = developed_by.game_id
 inner join companies on developed_by.studio_id = companies.id
-inner join games_genres on games.id = games_genres.game_id
-inner join genres on games_genres.genre_id = genres.id
+inner join belongs_to on games.id = belongs_to.game_id
+inner join genres on belongs_to.genre_id = genres.id
 inner join artworks on artworks.game_id = games.id
 inner join covers on covers.game_id = games.id
 inner join games_store on games_store.game_id = games.id
@@ -93,8 +93,8 @@ select
 from games
 inner join developed_by on games.id = developed_by.game_id
 inner join companies on developed_by.studio_id = companies.id
-inner join games_genres on games.id = games_genres.game_id
-inner join genres on games_genres.genre_id = genres.id
+inner join belongs_to on games.id = belongs_to.game_id
+inner join genres on belongs_to.genre_id = genres.id
 inner join artworks on artworks.game_id = games.id
 inner join covers on covers.game_id = games.id
 inner join games_store on games_store.game_id = games.id
@@ -190,7 +190,7 @@ order by games.name
 
             dbg!(&genre_id);
 
-            sqlx::query("INSERT INTO games_genres (game_id, genre_id) VALUES (?, ?)")
+            sqlx::query("INSERT INTO belongs_to (game_id, genre_id) VALUES (?, ?)")
                 .bind(id)
                 .bind(genre_id)
                 .execute(&mut *tx)

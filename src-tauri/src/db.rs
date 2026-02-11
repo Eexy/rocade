@@ -39,7 +39,7 @@ impl DatabaseState {
             from covers;
 
             delete
-            from games_genres;
+            from belongs_to;
 
             delete
             from games_store;
