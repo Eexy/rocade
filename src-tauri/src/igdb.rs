@@ -100,22 +100,8 @@ impl IgdbApiClient {
             .await
             .map_err(|e| e.to_string())?;
 
-        let mut publishers = Vec::new();
-        let mut developers = Vec::new();
-
-        for involved in &game_info.involved_companies {
-            if let Some(published) = &involved.company.published {
-                if published.contains(&game_info.id) {
-                    publishers.push(involved.company.clone());
-                }
-            }
-
-            if let Some(developed) = &involved.company.developed {
-                if developed.contains(&game_info.id) {
-                    developers.push(involved.company.clone());
-                }
-            }
-        }
+        let (publishers, developers) =
+            self.extract_game_companies(game_info.involved_companies, game_info.id);
 
         let game = IgdbGame {
             name: game_info.name,
@@ -132,6 +118,31 @@ impl IgdbApiClient {
         };
 
         Ok(game)
+    }
+
+    fn extract_game_companies(
+        &self,
+        companies: Vec<IgdbInvolvedCompany>,
+        game_id: u64,
+    ) -> (Vec<IgdbCompany>, Vec<IgdbCompany>) {
+        let mut publishers: Vec<IgdbCompany> = Vec::new();
+        let mut developers: Vec<IgdbCompany> = Vec::new();
+
+        for involved in companies {
+            if let Some(published) = &involved.company.published {
+                if published.contains(&game_id) {
+                    publishers.push(involved.company.clone());
+                }
+            }
+
+            if let Some(developed) = &involved.company.developed {
+                if developed.contains(&game_id) {
+                    developers.push(involved.company.clone());
+                }
+            }
+        }
+
+        (publishers, developers)
     }
 
     pub async fn get_games(&mut self, steam_games_ids: Vec<u64>) -> Result<Vec<IgdbGame>, String> {
@@ -155,22 +166,8 @@ impl IgdbApiClient {
             .map(|game| {
                 let store_id = steam_ids_map.get(&game.id).cloned();
 
-                let mut publishers = Vec::new();
-                let mut developers = Vec::new();
-
-                for involved in game.involved_companies {
-                    if let Some(published) = &involved.company.published {
-                        if published.contains(&game.id) {
-                            publishers.push(involved.company.clone());
-                        }
-                    }
-
-                    if let Some(developed) = &involved.company.developed {
-                        if developed.contains(&game.id) {
-                            developers.push(involved.company.clone());
-                        }
-                    }
-                }
+                let (publishers, developers) =
+                    self.extract_game_companies(game.involved_companies, game.id);
 
                 Ok(IgdbGame {
                     name: game.name,
