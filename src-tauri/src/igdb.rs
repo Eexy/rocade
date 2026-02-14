@@ -78,13 +78,13 @@ impl IgdbApiClient {
                 .expect("unable to set igdb client id"),
         );
 
-        return IgdbApiClient {
+        IgdbApiClient {
             twitch_client,
             client: tauri_plugin_http::reqwest::Client::builder()
                 .default_headers(headers)
                 .build()
                 .expect("unable to build igdb client"),
-        };
+        }
     }
 
     pub async fn get_game(&mut self, steam_game_id: u64) -> Result<IgdbGame, String> {
