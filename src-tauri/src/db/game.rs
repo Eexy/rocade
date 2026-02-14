@@ -48,34 +48,7 @@ order by games.name
     pub async fn get_games(pool: &Pool<Sqlite>) -> Result<Vec<Game>, sqlx::Error> {
         let query = Self::build_query_string(None);
         let games = sqlx::query(&query)
-            .map(|row: SqliteRow| {
-                let genres_json: Option<String> = row.get("genres");
-                let studios_json: Option<String> = row.get("studios");
-                let artworks_json: Option<String> = row.get("artworks");
-                let covers_json: Option<String> = row.get("covers");
-
-                Game {
-                    id: row.get("id"),
-                    release_date: row.get("release_date"),
-                    name: row.get("name"),
-                    developers: studios_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-                    genres: genres_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-                    is_installed: None,
-                    summary: row.get("summary"),
-                    artworks: artworks_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-                    cover: covers_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
-                        .and_then(|mut v| v.pop()),
-                    store_id: row.get("store_id"),
-                }
-            })
+            .map(Self::map_game_row)
             .fetch_all(pool)
             .await?;
 
@@ -86,34 +59,7 @@ order by games.name
         let query = Self::build_query_string(Some(game_id));
         let game = sqlx::query(&query)
             .bind(game_id)
-            .map(|row: SqliteRow| {
-                let genres_json: Option<String> = row.get("genres");
-                let studios_json: Option<String> = row.get("studios");
-                let artworks_json: Option<String> = row.get("artworks");
-                let covers_json: Option<String> = row.get("covers");
-
-                Game {
-                    id: row.get("id"),
-                    release_date: row.get("release_date"),
-                    name: row.get("name"),
-                    developers: studios_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-                    genres: genres_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-                    is_installed: None,
-                    summary: row.get("summary"),
-                    artworks: artworks_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-                    cover: covers_json
-                        .as_ref()
-                        .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
-                        .and_then(|mut v| v.pop()),
-                    store_id: row.get("store_id"),
-                }
-            })
+            .map(Self::map_game_row)
             .fetch_one(pool)
             .await?;
 
@@ -128,6 +74,35 @@ order by games.name
         };
 
         format!("{}{}{}", Self::BASE_QUERY, where_clause, Self::GROUP_ORDER)
+    }
+
+    fn map_game_row(row: SqliteRow) -> Game {
+        let genres_json: Option<String> = row.get("genres");
+        let studios_json: Option<String> = row.get("studios");
+        let artworks_json: Option<String> = row.get("artworks");
+        let covers_json: Option<String> = row.get("covers");
+
+        Game {
+            id: row.get("id"),
+            release_date: row.get("release_date"),
+            name: row.get("name"),
+            developers: studios_json
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            genres: genres_json
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            is_installed: None,
+            summary: row.get("summary"),
+            artworks: artworks_json
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            cover: covers_json
+                .as_ref()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
+                .and_then(|mut v| v.pop()),
+            store_id: row.get("store_id"),
+        }
     }
 
     pub async fn get_game_store_id(
