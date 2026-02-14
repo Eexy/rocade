@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use serde::Serialize;
 use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
 
