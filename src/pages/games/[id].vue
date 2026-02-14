@@ -13,8 +13,9 @@
                         <div class="text-muted-foreground flex items-center gap-2">
                             <template v-if="game.developers">
                                 <div class="flex items-center gap-2">
-                                    <span v-for="studio in game.developers" class="rounded bg-card px-1 capitalize">{{
-                                        studio }}</span>
+                                    <span v-for="studio in game.developers" :key="studio"
+                                        class="rounded bg-card px-1 capitalize">{{
+                                            studio }}</span>
                                     <div>
                                         •
                                     </div>
@@ -26,8 +27,9 @@
                                     •
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span v-for="genre in game.genres" class="rounded bg-card px-1 capitalize">{{
-                                        genre }}</span>
+                                    <span v-for="genre in game.genres" :key="genre"
+                                        class="rounded bg-card px-1 capitalize">{{
+                                            genre }}</span>
                                 </div>
                             </template>
                         </div>
