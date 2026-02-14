@@ -1,6 +1,6 @@
 export type GameInfo = {
     id: number,
-    name: String,
+    name: string,
     is_installed: boolean,
     cover?: string,
     artworks?: string[],
