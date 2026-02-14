@@ -150,7 +150,7 @@ order by games.name
         .bind(&game.name)
         .bind(&game.summary)
         .bind(&game.release_date)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
 
         dbg!(&id);
