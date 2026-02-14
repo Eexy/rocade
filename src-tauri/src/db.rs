@@ -25,7 +25,7 @@ impl DatabaseState {
 
         let pool = SqlitePool::connect_with(connexion).await?;
 
-        Ok(Self { pool: pool })
+        Ok(Self { pool })
     }
 
     /// Empty all database
