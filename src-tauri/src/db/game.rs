@@ -157,8 +157,6 @@ order by games.name
         .fetch_one(&mut *tx)
         .await?;
 
-        dbg!(&id);
-
         // Insert store
         sqlx::query("INSERT INTO games_store (game_id, store_id) VALUES (?, ?)")
             .bind(id)
@@ -192,8 +190,6 @@ order by games.name
                 .fetch_one(&mut *tx)
                 .await?;
 
-            dbg!(&genre_id);
-
             sqlx::query("INSERT INTO belongs_to (game_id, genre_id) VALUES (?, ?)")
                 .bind(id)
                 .bind(genre_id)
@@ -212,8 +208,6 @@ order by games.name
             .bind(&developer.name)
             .fetch_one(&mut *tx)
             .await?;
-
-            dbg!(&company_id);
 
             sqlx::query("INSERT INTO developed_by (game_id, studio_id) VALUES (?, ?)")
                 .bind(id)
