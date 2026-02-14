@@ -3,7 +3,7 @@ use std::{collections::HashMap, env};
 use tauri::{async_runtime::Mutex, Manager};
 
 use crate::{
-    db::DatabaseState,
+    db::{game::GameRepository, DatabaseState},
     igdb::IgdbApiClient,
     steam::{SteamApiClient, SteamClient},
     twitch::TwitchApiClient,
@@ -44,7 +44,9 @@ pub fn run() {
             tauri::async_runtime::block_on(  async {
                 let handle = app.app_handle();
                let db_state = db::DatabaseState::new(handle).await.expect("unable to init local db");
-                app.manage::<DatabaseState>(db_state)
+                let game_repository = GameRepository::new(db_state.pool.clone());
+                app.manage::<DatabaseState>(db_state);
+                app.manage::<GameRepository>(game_repository)
             });
 
 

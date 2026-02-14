@@ -18,10 +18,11 @@ pub struct GameQuery {
 
 #[tauri::command]
 pub async fn get_games(
-    db_state: State<'_, DatabaseState>,
+    game_repository: State<'_, GameRepository>,
     query: Option<GameQuery>,
 ) -> Result<Vec<Game>, String> {
-    let mut games = GameRepository::get_games(&db_state.pool)
+    let mut games = game_repository
+        .get_games()
         .await
         .map_err(|e| e.to_string())?;
 
@@ -69,6 +70,7 @@ pub async fn refresh_games(
     steam_client: State<'_, SteamApiClient>,
     igdb_client: State<'_, Mutex<IgdbApiClient>>,
     db_state: State<'_, DatabaseState>,
+    game_repository: State<'_, GameRepository>,
 ) -> Result<(), String> {
     let games_res = steam_client.get_games().await.map_err(|e| e.to_string())?;
     let mut locked_client = igdb_client.lock().await;
@@ -81,7 +83,7 @@ pub async fn refresh_games(
         .await
         .map_err(|e| e.to_string())?;
 
-    insert_games(db_state.clone(), igdb_games)
+    insert_games(game_repository, igdb_games)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -93,19 +95,23 @@ async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Erro
 }
 
 async fn insert_games(
-    db_state: State<'_, DatabaseState>,
+    game_repository: State<'_, GameRepository>,
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
     for game in games {
-        let _id = GameRepository::insert_complete_game(&db_state.pool, game).await?;
+        let _id = game_repository.insert_complete_game(game).await?;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Result<Game, String> {
-    let mut game = GameRepository::get_game_by_id(&db_state.pool, game_id)
+pub async fn get_game(
+    game_repository: State<'_, GameRepository>,
+    game_id: i64,
+) -> Result<Game, String> {
+    let mut game = game_repository
+        .get_game_by_id(game_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -122,11 +128,12 @@ pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Resul
 
 #[tauri::command]
 pub async fn install_game(
-    db_state: State<'_, DatabaseState>,
+    game_repository: State<'_, GameRepository>,
     app: AppHandle,
     game_id: i64,
 ) -> Result<bool, String> {
-    let store_id = GameRepository::get_game_store_id(&db_state.pool, game_id)
+    let store_id = game_repository
+        .get_game_store_id(game_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -137,11 +144,12 @@ pub async fn install_game(
 
 #[tauri::command]
 pub async fn uninstall_game(
-    db_state: State<'_, DatabaseState>,
+    game_repository: State<'_, GameRepository>,
     app: AppHandle,
     game_id: i64,
 ) -> Result<bool, String> {
-    let store_id = GameRepository::get_game_store_id(&db_state.pool, game_id)
+    let store_id = game_repository
+        .get_game_store_id(game_id)
         .await
         .map_err(|e| e.to_string())?;
 

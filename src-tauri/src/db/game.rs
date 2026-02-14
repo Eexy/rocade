@@ -17,7 +17,9 @@ pub struct Game {
     pub developers: Option<Vec<String>>,
 }
 
-pub struct GameRepository {}
+pub struct GameRepository {
+    pool: Pool<Sqlite>,
+}
 
 impl GameRepository {
     const BASE_QUERY: &'static str = "
@@ -45,22 +47,26 @@ group by games.id, games.name, games_store.store_id, games.summary, games.releas
 order by games.name
 ";
 
-    pub async fn get_games(pool: &Pool<Sqlite>) -> Result<Vec<Game>, sqlx::Error> {
+    pub fn new(pool: Pool<Sqlite>) -> Self {
+        Self { pool }
+    }
+
+    pub async fn get_games(&self) -> Result<Vec<Game>, sqlx::Error> {
         let query = Self::build_query_string(None);
         let games = sqlx::query(&query)
             .map(Self::map_game_row)
-            .fetch_all(pool)
+            .fetch_all(&self.pool)
             .await?;
 
         Ok(games)
     }
 
-    pub async fn get_game_by_id(pool: &Pool<Sqlite>, game_id: i64) -> Result<Game, sqlx::Error> {
+    pub async fn get_game_by_id(&self, game_id: i64) -> Result<Game, sqlx::Error> {
         let query = Self::build_query_string(Some(game_id));
         let game = sqlx::query(&query)
             .bind(game_id)
             .map(Self::map_game_row)
-            .fetch_one(pool)
+            .fetch_one(&self.pool)
             .await?;
 
         Ok(game)
@@ -105,25 +111,19 @@ order by games.name
         }
     }
 
-    pub async fn get_game_store_id(
-        pool: &Pool<Sqlite>,
-        game_id: i64,
-    ) -> Result<String, sqlx::Error> {
+    pub async fn get_game_store_id(&self, game_id: i64) -> Result<String, sqlx::Error> {
         let store_id: String =
             sqlx::query_scalar("select store_id from games_store where game_id = $1")
                 .bind(game_id)
-                .fetch_one(pool)
+                .fetch_one(&self.pool)
                 .await?;
 
         Ok(store_id)
     }
 
     /// Insert a game with all its informations : covers, genres...
-    pub async fn insert_complete_game(
-        pool: &Pool<Sqlite>,
-        game: IgdbGame,
-    ) -> Result<i64, sqlx::Error> {
-        let mut tx = pool.begin().await?;
+    pub async fn insert_complete_game(&self, game: IgdbGame) -> Result<i64, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
         let id = sqlx::query_scalar::<_, i64>(
             r#"insert into games (name, summary, release_date) values ( ?, ?, ?) returning id"#,
         )
