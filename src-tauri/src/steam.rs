@@ -66,7 +66,7 @@ impl SteamClient {
         SteamClient {}
     }
 
-    fn get_steam_dir(&self) -> Result<PathBuf, String> {
+    fn get_steam_dir() -> Result<PathBuf, String> {
         use std::env;
 
         let mut user_dir = match env::home_dir() {
@@ -82,18 +82,14 @@ impl SteamClient {
         Ok(user_dir)
     }
 
-    fn get_game_manifest_file_path(&self, steam_game_id: String) -> Result<PathBuf, String> {
-        let mut steam_dir = self.get_steam_dir()?;
+    fn get_game_manifest_file_path(steam_game_id: String) -> Result<PathBuf, String> {
+        let mut steam_dir = Self::get_steam_dir()?;
         steam_dir.push(format!("appmanifest_{}", steam_game_id));
         steam_dir.set_extension("acf");
         Ok(steam_dir)
     }
 
-    pub fn install_game(
-        &self,
-        app_handle: AppHandle,
-        steam_game_id: String,
-    ) -> Result<bool, String> {
+    pub fn install_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, String> {
         app_handle
             .opener()
             .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)
@@ -102,11 +98,7 @@ impl SteamClient {
         Ok(true)
     }
 
-    pub fn uninstall_game(
-        &self,
-        app_handle: AppHandle,
-        steam_game_id: String,
-    ) -> Result<bool, String> {
+    pub fn uninstall_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, String> {
         app_handle
             .opener()
             .open_url(format!("steam://uninstall/{}", steam_game_id), None::<&str>)
@@ -115,8 +107,8 @@ impl SteamClient {
         Ok(true)
     }
 
-    pub fn is_steam_game_install(&self, game_id: String) -> bool {
-        let manifest_file = match self.get_game_manifest_file_path(game_id) {
+    pub fn is_steam_game_install(game_id: String) -> bool {
+        let manifest_file = match Self::get_game_manifest_file_path(game_id) {
             Ok(file) => file,
             Err(_) => return false,
         };

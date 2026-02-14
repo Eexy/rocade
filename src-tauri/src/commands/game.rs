@@ -104,11 +104,7 @@ async fn insert_games(
 }
 
 #[tauri::command]
-pub async fn get_game(
-    steam_client: State<'_, SteamClient>,
-    db_state: State<'_, DatabaseState>,
-    game_id: i64,
-) -> Result<Game, String> {
+pub async fn get_game(db_state: State<'_, DatabaseState>, game_id: i64) -> Result<Game, String> {
     let mut game = GameRepository::get_game_by_id(&db_state.pool, game_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -116,7 +112,7 @@ pub async fn get_game(
     let mut is_installed = false;
 
     if let Some(store_id) = game.store_id.clone() {
-        is_installed = steam_client.is_steam_game_install(store_id);
+        is_installed = SteamClient::is_steam_game_install(store_id);
     }
 
     game.is_installed = Some(is_installed);
@@ -126,7 +122,6 @@ pub async fn get_game(
 
 #[tauri::command]
 pub async fn install_game(
-    steam_client: State<'_, SteamClient>,
     db_state: State<'_, DatabaseState>,
     app: AppHandle,
     game_id: i64,
@@ -139,9 +134,7 @@ pub async fn install_game(
             .map_err(|e| e.to_string())?;
 
     if let Some(id) = store_id {
-        steam_client
-            .install_game(app, id)
-            .map_err(|e| e.to_string())?;
+        SteamClient::install_game(app, id).map_err(|e| e.to_string())?;
         return Ok(true);
     }
 
@@ -150,7 +143,6 @@ pub async fn install_game(
 
 #[tauri::command]
 pub async fn uninstall_game(
-    steam_client: State<'_, SteamClient>,
     db_state: State<'_, DatabaseState>,
     app: AppHandle,
     game_id: i64,
@@ -163,9 +155,7 @@ pub async fn uninstall_game(
             .map_err(|e| e.to_string())?;
 
     if let Some(id) = store_id {
-        steam_client
-            .uninstall_game(app, id)
-            .map_err(|e| e.to_string())?;
+        SteamClient::uninstall_game(app, id).map_err(|e| e.to_string())?;
         return Ok(true);
     }
 
