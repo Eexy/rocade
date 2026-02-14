@@ -138,6 +138,19 @@ order by games.name
         Ok(game)
     }
 
+    pub async fn get_game_store_id(
+        pool: &Pool<Sqlite>,
+        game_id: i64,
+    ) -> Result<String, sqlx::Error> {
+        let store_id: String =
+            sqlx::query_scalar("select store_id from games_store where game_id = $1")
+                .bind(game_id)
+                .fetch_one(pool)
+                .await?;
+
+        Ok(store_id)
+    }
+
     /// Insert a game with all its informations : covers, genres...
     pub async fn insert_complete_game(
         pool: &Pool<Sqlite>,

@@ -126,19 +126,13 @@ pub async fn install_game(
     app: AppHandle,
     game_id: i64,
 ) -> Result<bool, String> {
-    let store_id: Option<String> =
-        sqlx::query_scalar("select store_id from games_store where game_id = $1")
-            .bind(game_id)
-            .fetch_one(&db_state.pool)
-            .await
-            .map_err(|e| e.to_string())?;
+    let store_id = GameRepository::get_game_store_id(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    if let Some(id) = store_id {
-        SteamClient::install_game(app, id).map_err(|e| e.to_string())?;
-        return Ok(true);
-    }
+    SteamClient::install_game(app, store_id).map_err(|e| e.to_string())?;
 
-    Err("unable to install game".to_string())
+    Ok(true)
 }
 
 #[tauri::command]
@@ -147,17 +141,10 @@ pub async fn uninstall_game(
     app: AppHandle,
     game_id: i64,
 ) -> Result<bool, String> {
-    let store_id: Option<String> =
-        sqlx::query_scalar("select store_id from games_store where game_id = $1")
-            .bind(game_id)
-            .fetch_one(&db_state.pool)
-            .await
-            .map_err(|e| e.to_string())?;
+    let store_id = GameRepository::get_game_store_id(&db_state.pool, game_id)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    if let Some(id) = store_id {
-        SteamClient::uninstall_game(app, id).map_err(|e| e.to_string())?;
-        return Ok(true);
-    }
-
-    Err("unable to uninstall game".to_string())
+    SteamClient::uninstall_game(app, store_id).map_err(|e| e.to_string())?;
+    Ok(true)
 }
