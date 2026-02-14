@@ -107,7 +107,7 @@ impl SteamClient {
         Ok(true)
     }
 
-    pub fn is_steam_game_install(game_id: String) -> bool {
+    pub fn is_steam_game_installed(game_id: String) -> bool {
         let manifest_file = match Self::get_game_manifest_file_path(game_id) {
             Ok(file) => file,
             Err(_) => return false,

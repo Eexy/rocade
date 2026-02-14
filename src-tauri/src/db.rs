@@ -18,12 +18,12 @@ impl DatabaseState {
 
         let db_path = app_dir.join("rocade.db");
 
-        let connexion = SqliteConnectOptions::new()
+        let connection = SqliteConnectOptions::new()
             .filename(&db_path)
             .create_if_missing(true)
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
-        let pool = SqlitePool::connect_with(connexion).await?;
+        let pool = SqlitePool::connect_with(connection).await?;
 
         Ok(Self { pool })
     }

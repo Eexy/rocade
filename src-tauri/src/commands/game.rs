@@ -118,7 +118,7 @@ pub async fn get_game(
     let mut is_installed = false;
 
     if let Some(store_id) = game.store_id.clone() {
-        is_installed = SteamClient::is_steam_game_install(store_id);
+        is_installed = SteamClient::is_steam_game_installed(store_id);
     }
 
     game.is_installed = Some(is_installed);
