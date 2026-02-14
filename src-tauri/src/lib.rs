@@ -1,4 +1,3 @@
-use core::panic;
 use std::{collections::HashMap, env};
 
 use tauri::{async_runtime::Mutex, Manager};
