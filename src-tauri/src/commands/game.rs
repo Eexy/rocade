@@ -97,8 +97,7 @@ async fn insert_games(
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
     for game in games {
-        let id = GameRepository::insert_complete_game(&db_state.pool, game).await?;
-        dbg!(&id);
+        let _id = GameRepository::insert_complete_game(&db_state.pool, game).await?;
     }
 
     Ok(())
