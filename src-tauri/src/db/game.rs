@@ -20,6 +20,31 @@ pub struct Game {
 pub struct GameRepository {}
 
 impl GameRepository {
+    const BASE_QUERY: &'static str = "
+select 
+    games.id as id, 
+    games.name as name, 
+    games_store.store_id as store_id, 
+    summary, release_date, 
+    json_group_array(distinct genres.name) as genres, 
+    json_group_array(distinct companies.name) as studios, 
+    json_group_array(distinct artworks.artwork_id) as artworks, 
+    json_group_array(distinct covers.cover_id) as covers
+from games
+inner join developed_by on games.id = developed_by.game_id
+inner join companies on developed_by.studio_id = companies.id
+inner join belongs_to on games.id = belongs_to.game_id
+inner join genres on belongs_to.genre_id = genres.id
+inner join artworks on artworks.game_id = games.id
+inner join covers on covers.game_id = games.id
+inner join games_store on games_store.game_id = games.id
+";
+
+    const GROUP_ORDER: &'static str = "
+group by games.id, games.name, games_store.store_id, games.summary, games.release_date
+order by games.name
+";
+
     pub async fn get_games(pool: &Pool<Sqlite>) -> Result<Vec<Game>, sqlx::Error> {
         let query = Self::build_query_string(None);
         let games = sqlx::query(&query)
@@ -96,37 +121,13 @@ impl GameRepository {
     }
 
     fn build_query_string(game_id: Option<i64>) -> String {
-        let base_query = "
-select 
-    games.id as id, 
-    games.name as name, 
-    games_store.store_id as store_id, 
-    summary, release_date, 
-    json_group_array(distinct genres.name) as genres, 
-    json_group_array(distinct companies.name) as studios, 
-    json_group_array(distinct artworks.artwork_id) as artworks, 
-    json_group_array(distinct covers.cover_id) as covers
-from games
-inner join developed_by on games.id = developed_by.game_id
-inner join companies on developed_by.studio_id = companies.id
-inner join belongs_to on games.id = belongs_to.game_id
-inner join genres on belongs_to.genre_id = genres.id
-inner join artworks on artworks.game_id = games.id
-inner join covers on covers.game_id = games.id
-inner join games_store on games_store.game_id = games.id
-";
-
-        let order_clause = "
-group by games.id, games.name, games_store.store_id, games.summary, games.release_date
-order by games.name
-";
         let where_clause = if game_id.is_some() {
             " where games.id =  ?"
         } else {
             ""
         };
 
-        format!("{}{}{}", base_query, where_clause, order_clause)
+        format!("{}{}{}", Self::BASE_QUERY, where_clause, Self::GROUP_ORDER)
     }
 
     pub async fn get_game_store_id(
