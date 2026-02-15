@@ -120,6 +120,7 @@ async fn insert_games(
 #[tauri::command]
 pub async fn get_game(
     game_repository: State<'_, GameRepository>,
+    steam_client: State<'_, SteamClient>,
     game_id: i64,
 ) -> Result<Game, RocadeError> {
     let mut game = game_repository.get_game_by_id(game_id).await?;
@@ -127,7 +128,7 @@ pub async fn get_game(
     let mut is_installed = false;
 
     if let Some(store_id) = game.store_id.clone() {
-        is_installed = SteamClient::is_steam_game_installed(store_id);
+        is_installed = steam_client.is_steam_game_installed(store_id);
     }
 
     game.is_installed = Some(is_installed);

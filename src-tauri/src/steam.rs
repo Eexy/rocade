@@ -18,6 +18,9 @@ pub enum SteamError {
 
     #[error("unable to communicate with steam client: {0}")]
     ClientError(#[from] tauri_plugin_opener::Error),
+
+    #[error("invalid steam client config")]
+    ClientConfigError(String),
 }
 
 #[derive(Debug)]
@@ -79,31 +82,17 @@ impl SteamApiClient {
     }
 }
 
-pub struct SteamClient {}
+pub struct SteamClient {
+    path: PathBuf,
+}
 
 impl SteamClient {
-    pub fn new() -> Self {
-        SteamClient {}
+    pub fn new(path: PathBuf) -> Self {
+        SteamClient { path }
     }
 
-    fn get_steam_dir() -> Result<PathBuf, String> {
-        use std::env;
-
-        let mut user_dir = match env::home_dir() {
-            Some(path) => path,
-            None => return Err("unable to get user home directory".to_string()),
-        };
-
-        user_dir.push(r".local");
-        user_dir.push("share");
-        user_dir.push("Steam");
-        user_dir.push("steamapps");
-
-        Ok(user_dir)
-    }
-
-    fn get_game_manifest_file_path(steam_game_id: String) -> Result<PathBuf, String> {
-        let mut steam_dir = Self::get_steam_dir()?;
+    fn get_game_manifest_file_path(&self, steam_game_id: String) -> Result<PathBuf, String> {
+        let mut steam_dir = self.path.clone();
         steam_dir.push(format!("appmanifest_{}", steam_game_id));
         steam_dir.set_extension("acf");
         Ok(steam_dir)
@@ -128,8 +117,8 @@ impl SteamClient {
         Ok(true)
     }
 
-    pub fn is_steam_game_installed(game_id: String) -> bool {
-        let manifest_file = match Self::get_game_manifest_file_path(game_id) {
+    pub fn is_steam_game_installed(&self, game_id: String) -> bool {
+        let manifest_file = match self.get_game_manifest_file_path(game_id) {
             Ok(file) => file,
             Err(_) => return false,
         };

@@ -1,20 +1,17 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
 use tauri::{AppHandle, Manager};
+
+use crate::config::RocadeConfigError;
 
 pub struct DatabaseState {
     pub pool: Pool<Sqlite>,
 }
 
 impl DatabaseState {
-    pub async fn new(app_handle: &AppHandle) -> Result<DatabaseState, sqlx::Error> {
-        let app_dir = app_handle
-            .path()
-            .app_data_dir()
-            .expect("unable to get app directory");
-
-        fs::create_dir_all(&app_dir).expect("unable to create app directory");
+    pub async fn new(app_dir: PathBuf) -> Result<DatabaseState, RocadeConfigError> {
+        fs::create_dir_all(&app_dir);
 
         let db_path = app_dir.join("rocade.db");
 
