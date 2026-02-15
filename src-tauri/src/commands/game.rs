@@ -9,7 +9,7 @@ use crate::{
     steam::{SteamApiClient, SteamClient},
 };
 use serde::{Deserialize, Serialize};
-use tauri::{async_runtime::Mutex, AppHandle, State};
+use tauri::{async_runtime::Mutex, window, AppHandle, State};
 use thiserror::Error;
 
 #[derive(Debug, Serialize, Error)]
@@ -60,10 +60,11 @@ pub async fn get_games(
 
 pub fn trigrams(s: String) -> HashSet<String> {
     let s_with_spaces = format!("  {} ", s);
+    let chars: Vec<char> = s_with_spaces.chars().collect();
     let mut hashset: HashSet<String> = HashSet::new();
 
-    for i in 0..s_with_spaces.len() - 2 {
-        hashset.insert(s_with_spaces[i..i + 3].to_string());
+    for window in chars.windows(3) {
+        hashset.insert(window.iter().collect());
     }
 
     hashset
