@@ -6,6 +6,7 @@
 </template>
 
 <script setup lang="ts">
+import { getIgdbImageUrl } from '@/api/igdb';
 import { GameInfo } from '@/types/game';
 import { computed } from 'vue';
 
@@ -18,7 +19,8 @@ const props = defineProps<Props>()
 
 const coverUrl = computed(() => {
     if (!props.game.cover) return
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${props.game.cover}.jpg`
+
+    return getIgdbImageUrl(props.game.cover, 't_cover_small')
 })
 
 </script>

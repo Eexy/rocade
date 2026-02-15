@@ -85,6 +85,7 @@ import CardHeader from '@/components/ui/card/CardHeader.vue';
 import { GameInfo } from '@/types/game';
 import { format } from "date-fns"
 import { getGameById, installGame, uninstallGame } from '@/commands/game.command';
+import { getIgdbImageUrl } from '@/api/igdb';
 
 const route = useRoute('/games/[id]');
 const id = computed(() => Number(route.params.id))
@@ -110,7 +111,8 @@ const artworkUrl = computed(() => {
     if (!game.value.artworks) return null
 
     if (!game.value.artworks[0]) return null
-    return `https://images.igdb.com/igdb/image/upload/t_1080p/${game.value.artworks[0]}.jpg`
+
+    return getIgdbImageUrl(game.value.artworks[0], 't_1080p')
 })
 
 async function onDownloadClick() {
