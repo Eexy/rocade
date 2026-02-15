@@ -9,7 +9,7 @@ use crate::{
     steam::{SteamApiClient, SteamClient},
 };
 use serde::{Deserialize, Serialize};
-use tauri::{async_runtime::Mutex, window, AppHandle, State};
+use tauri::{async_runtime::Mutex, AppHandle, State};
 use thiserror::Error;
 
 #[derive(Debug, Serialize, Error)]
@@ -47,10 +47,7 @@ pub async fn get_games(
                     return true;
                 }
 
-                similarity(
-                    name.clone().to_ascii_lowercase(),
-                    game.name.clone().to_ascii_lowercase(),
-                ) > 0.4
+                similarity(&name.to_ascii_lowercase(), &game.name.to_ascii_lowercase()) > 0.4
             })
             .collect();
     }
@@ -58,7 +55,7 @@ pub async fn get_games(
     Ok(games)
 }
 
-pub fn trigrams(s: String) -> HashSet<String> {
+pub fn trigrams(s: &str) -> HashSet<String> {
     let s_with_spaces = format!("  {} ", s);
     let chars: Vec<char> = s_with_spaces.chars().collect();
     let mut hashset: HashSet<String> = HashSet::new();
@@ -70,7 +67,7 @@ pub fn trigrams(s: String) -> HashSet<String> {
     hashset
 }
 
-pub fn similarity(a: String, b: String) -> f64 {
+pub fn similarity(a: &str, b: &str) -> f64 {
     let tri_a = trigrams(a);
     let tri_b = trigrams(b);
 
