@@ -66,7 +66,7 @@ pub fn trigrams(s: String) -> HashSet<String> {
         hashset.insert(s_with_spaces[i..i + 3].to_string());
     }
 
-    return hashset;
+    hashset
 }
 
 pub fn similarity(a: String, b: String) -> f64 {

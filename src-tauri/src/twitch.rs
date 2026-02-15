@@ -16,12 +16,12 @@ pub struct TwitchAuthResponse {
 
 impl TwitchApiClient {
     pub fn new(client_id: String, client_secret: String) -> Self {
-        return TwitchApiClient {
+        TwitchApiClient {
             client_id,
             client_secret,
             access_token: None,
             client: tauri_plugin_http::reqwest::Client::new(),
-        };
+        }
     }
 
     pub fn get_client_id(&self) -> String {
