@@ -1,4 +1,4 @@
-import { getGames } from "@/commands/game.command";
+import { getGames, refreshGames } from "@/commands/game.command";
 import { GameInfo } from "@/types/game";
 import { defineStore } from "pinia";
 import { onMounted, ref, watch } from "vue";
@@ -8,8 +8,8 @@ export const useGameStore = defineStore('game', () => {
     const search = ref("");
     const filteredGames = ref<GameInfo[]>([])
 
+    async function init() {
 
-    onMounted(async () => {
         let res: GameInfo[] = await getGames()
 
         if (!res.length) {
@@ -18,7 +18,7 @@ export const useGameStore = defineStore('game', () => {
         }
 
         games.value = res
-    })
+    }
 
     watch([games, search], async () => {
         if (games.value.length && !search.value.length) {
@@ -31,5 +31,5 @@ export const useGameStore = defineStore('game', () => {
     }, { immediate: true })
 
 
-    return { games, filteredGames, search }
+    return { games, init, filteredGames, search }
 })
