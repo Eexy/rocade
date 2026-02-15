@@ -2,538 +2,87 @@
 
 ## Critical Issues
 
-### 1. Transaction bug in `insert_complete_game` - game insert runs outside transaction
-
-**File:** `src-tauri/src/db/game.rs:153`
-
-The first `INSERT INTO games` query uses `pool` directly instead of `&mut *tx`. This means the game row is inserted outside the transaction, while covers, genres, artworks, and developers are inside the transaction. If any of those fail and the transaction rolls back, you end up with an orphan game row in the database with no associated data.
-
-```rust
-// Current (broken): uses pool, not the transaction
-let id = sqlx::query_scalar::<_, i64>(
-    r#"insert into games (name, summary, release_date) values ( ?, ?, ?) returning id"#,
-)
-.bind(&game.name)
-.bind(&game.summary)
-.bind(&game.release_date)
-.fetch_one(pool)       // <-- BUG: should be &mut *tx
-.await?;
-```
-
-**Example of failure:** If inserting a genre fails (e.g. database constraint), the transaction rolls back. But the game row is already committed because it bypassed the transaction. You now have a game with no genres, no cover, no developers. The next `refresh_games` call will `clean()` and delete it, but any read in between will return broken data.
-
-**Fix:** Change `.fetch_one(pool)` to `.fetch_one(&mut *tx)`.
-
----
-
-### 2. Trigram function panics on non-ASCII game names
-
-**File:** `src-tauri/src/commands/game.rs:53`
-
-The `trigrams()` function uses byte-based string slicing (`s_with_spaces[i..i + 3]`). This will **panic at runtime** if any game name contains multi-byte UTF-8 characters (accented letters, Japanese, Chinese, Korean, emojis, etc.).
-
-```rust
-// This panics on "Pokémon" because 'é' is 2 bytes
-for i in 0..s_with_spaces.len() - 2 {
-    hashset.insert(s_with_spaces[i..i + 3].to_string()); // PANIC on byte boundary
-}
-```
-
-**Example of failure:** A user searches for "pokemon" while their library contains "Pokémon Legends: Arceus". The function tries to slice into the middle of the `é` character (2 bytes in UTF-8) and the app **crashes**.
-
-**Fix:** Use `.chars()` and iterate over character windows instead of byte indices:
-
-```rust
-pub fn trigrams(s: &str) -> HashSet<String> {
-    let s_with_spaces = format!("  {} ", s);
-    let chars: Vec<char> = s_with_spaces.chars().collect();
-    let mut hashset = HashSet::new();
-    for window in chars.windows(3) {
-        hashset.insert(window.iter().collect());
-    }
-    hashset
-}
-```
-
----
-
-### 3. `INNER JOIN` silently drops games missing any relation
+### 1. `INNER JOIN` silently drops games missing any relation
 
 **File:** `src-tauri/src/db/game.rs:36-42`
 
-The `get_games` and `get_game_by_id` queries use `INNER JOIN` for **all** relations (genres, developers, artworks, covers, games_store). If a game is missing even one genre, one cover, or one developer, it completely disappears from results.
+The `BASE_QUERY` uses `INNER JOIN` for **all** relations (genres, developers, artworks, covers, games_store). If a game is missing even one genre, one cover, or one developer, it completely disappears from results.
 
 ```sql
--- If a game has no artwork, this INNER JOIN removes it from results entirely
+inner join developed_by on games.id = developed_by.game_id
+inner join companies on developed_by.studio_id = companies.id
+inner join belongs_to on games.id = belongs_to.game_id
+inner join genres on belongs_to.genre_id = genres.id
 inner join artworks on artworks.game_id = games.id
 inner join covers on covers.game_id = games.id
+inner join games_store on games_store.game_id = games.id
 ```
 
 **Example of failure:** IGDB returns a game with `artworks: None` (the field is `Option<Vec<IgdbImage>>`). No artworks are inserted. The game exists in the `games` table but the `INNER JOIN artworks` causes it to silently vanish from all queries. The user's Steam library shows fewer games than expected with no error.
 
-**Fix:** Use `LEFT JOIN` for optional relations:
-
-```sql
-LEFT JOIN artworks ON artworks.game_id = games.id
-LEFT JOIN covers ON covers.game_id = games.id
-```
-
 ---
 
-### 4. `refresh_games` wipes the entire database on every sync
+### 2. `refresh_games` wipes the entire database on every sync
 
-**File:** `src-tauri/src/commands/game.rs:80-86`
+**File:** `src-tauri/src/commands/game.rs:98-104`
 
-Every time a user refreshes their library, the `clean()` method deletes all data from every table, then re-fetches and re-inserts everything from scratch. If the IGDB API fails mid-sync (rate limit, network error, outage), the user loses their entire library with no way to recover.
+Every time a user refreshes their library, `clean()` deletes all data from every table, then re-fetches and re-inserts everything from scratch. If the IGDB API fails mid-sync (rate limit, network error, outage), the user loses their entire library with no way to recover.
 
 ```rust
-prepare_db(db_state.clone()).await.map_err(|e| e.to_string())?; // deletes everything
-insert_games(db_state.clone(), igdb_games).await.map_err(|e| e.to_string())?; // might fail
+prepare_db(db_state.clone())
+    .await
+    .map_err(|e| RocadeError::Database(e.to_string()))?;
+
+insert_games(game_repository, igdb_games)
+    .await
+    .map_err(|e| RocadeError::Database(e.to_string()))?;
 ```
 
-**Example of failure:** User has 200 games in their library. They click refresh. `clean()` deletes all 200 games. The IGDB API returns a 429 rate limit error after 50 games. The user now has 50 games instead of 200, and no way to get the other 150 back without a successful full resync.
-
-**Fix:** Use an upsert strategy (`INSERT ... ON CONFLICT DO UPDATE`) instead of delete + re-insert. Or at least wrap the entire clean + insert in a single database transaction so it's atomic.
+**Example of failure:** User has 200 games. They click refresh. `clean()` deletes all 200. The IGDB API returned only 50 games due to the 500 limit issue (see #5). The user now has 50 games. Even if the API worked perfectly, if `insert_games` fails mid-way on game 100, the user loses the remaining 100 with no way to recover without a full resync.
 
 ---
 
-### 5. No database migrations at startup
+### 3. No database migrations at startup
 
 **File:** `src-tauri/src/db.rs`
 
-`DatabaseState::new()` creates the SQLite connection pool but never runs migrations. There is no `sqlx::migrate!().run(&pool).await` call. The 12 migration files in `src-tauri/migrations/` are not applied automatically, meaning a fresh install would have an empty database with no tables.
-
-**Example of failure:** A user installs Rocade for the first time. The app creates `rocade.db` but no tables exist. Every query fails with "no such table: games". The app is unusable until migrations are run manually via CLI.
-
-**Fix:** Add migration execution after pool creation:
+`DatabaseState::new()` creates the SQLite connection pool but never runs migrations. There are 12 migration files in `src-tauri/migrations/` that are never applied automatically. A fresh install will have an empty database with no tables.
 
 ```rust
-sqlx::migrate!().run(&pool).await?;
-```
-
----
-
-## Error Handling Issues
-
-### 6. `panic!` for missing environment variables instead of graceful error
-
-**File:** `src-tauri/src/lib.rs:60-62, 71-73`
-
-Missing `.env` variables cause a hard `panic!`, crashing the entire application with no user-facing error message. The user sees a raw crash with no explanation.
-
-```rust
-_ => {
-    panic!("Unable to load steam config. Missing STEAM_KEY or STEAM_PROFILE_ID in dotenv file")
-}
-```
-
-**Example of failure:** A new user clones the project, runs `cargo tauri dev` without creating a `.env` file. The app crashes on startup with a panic. The error message mentions "STEAM_KEY" but the actual variable name in the code is "STEAM_API_KEY" - so even the panic message is misleading.
-
-**Fix:** Return a proper `Err` from the `setup` closure, or display a dialog box explaining what configuration is missing.
-
----
-
-### 7. No custom error type - all errors mapped to `String`
-
-**Files:** All Rust files use `.map_err(|e| e.to_string())`
-
-Every error in the application is converted to a plain `String` with `.map_err(|e| e.to_string())`. This loses error context (type, cause chain, backtrace) and makes it impossible to programmatically handle different error kinds on the frontend.
-
-```rust
-// This is repeated ~30 times across the codebase
-.map_err(|e| e.to_string())?;
-```
-
-**Example of failure:** The frontend receives `"error returned from database: (code: 1555) UNIQUE constraint failed"` as a raw string. It cannot distinguish between a network error, a database error, or an API error to show the user an appropriate message or retry strategy.
-
-**Fix:** Create an `AppError` enum implementing `std::error::Error` and `serde::Serialize`:
-
-```rust
-#[derive(Debug, thiserror::Error, Serialize)]
-pub enum AppError {
-    #[error("Database error: {0}")]
-    Database(String),
-    #[error("Steam API error: {0}")]
-    SteamApi(String),
-    #[error("IGDB API error: {0}")]
-    IgdbApi(String),
-}
-```
-
----
-
-### 8. `dbg!()` macros left in production code
-
-**File:** `src-tauri/src/db/game.rs:156, 191, 212` and `src-tauri/src/commands/game.rs:101`
-
-Multiple `dbg!()` calls are left in the code. These write to stderr in production, leak internal state (database IDs), and slow down inserts in loops.
-
-```rust
-dbg!(&id);         // line 156 - after every game insert
-dbg!(&genre_id);   // line 191 - after every genre insert
-dbg!(&company_id); // line 212 - after every company insert
-```
-
-**Example of failure:** A user with 500 games triggers a refresh. This produces 500 game IDs + thousands of genre/company IDs written to stderr. On systems where stderr is logged (journald, systemd), this creates log noise and wastes disk space.
-
-**Fix:** Remove all `dbg!()` calls, or replace with proper `tracing`/`log` crate logging at debug level.
-
----
-
-## Rust Syntax & Idiom Issues
-
-### 9. Explicit `return` at end of functions
-
-**Files:** `src-tauri/src/igdb.rs:81`, `src-tauri/src/twitch.rs:19`, `src-tauri/src/commands/game.rs:57,64`
-
-Rust idiom is to use the last expression as the implicit return value. Explicit `return` at the end of a function is considered non-idiomatic.
-
-```rust
-// Non-idiomatic
-pub fn new(twitch_client: TwitchApiClient) -> Self {
-    return IgdbApiClient { ... };
-}
-
-// Idiomatic
-pub fn new(twitch_client: TwitchApiClient) -> Self {
-    IgdbApiClient { ... }
-}
-```
-
-Also in `trigrams()` and `similarity()`:
-```rust
-return hashset;        // should be just: hashset
-return tri_a.intersection(&tri_b).count() as f64 / tri_a.len() as f64;
-```
-
----
-
-### 10. `trigrams` and `similarity` take `String` by value instead of `&str`
-
-**File:** `src-tauri/src/commands/game.rs:49,60`
-
-These functions take ownership of `String` values, forcing unnecessary clones at every call site. They only need to read the string.
-
-```rust
-// Current: forces caller to clone
-pub fn trigrams(s: String) -> HashSet<String> { ... }
-pub fn similarity(a: String, b: String) -> f64 { ... }
-
-// In get_games, this forces cloning on every iteration:
-similarity(
-    name.clone().to_ascii_lowercase(),     // clone + allocate
-    game.name.clone().to_ascii_lowercase(), // clone + allocate
-)
-```
-
-**Fix:**
-
-```rust
-pub fn trigrams(s: &str) -> HashSet<String> { ... }
-pub fn similarity(a: &str, b: &str) -> f64 { ... }
-```
-
----
-
-### 11. `Ok(Self { pool: pool })` - redundant field name
-
-**File:** `src-tauri/src/db.rs:28`
-
-When a variable has the same name as the struct field, Rust allows shorthand initialization.
-
-```rust
-// Current
-Ok(Self { pool: pool })
-
-// Idiomatic
+// db.rs - DatabaseState::new() ends with:
+let pool = SqlitePool::connect_with(connection).await?;
 Ok(Self { pool })
+// No sqlx::migrate!().run(&pool).await? anywhere
 ```
+
+**Example of failure:** A user installs Rocade for the first time. The app creates `rocade.db` but no tables exist. Every query fails with "no such table: games". The app is unusable.
 
 ---
 
-### 12. `use core::panic` import is unused
+### 4. `IgdbGameInfo` has non-optional fields that IGDB doesn't guarantee
 
-**File:** `src-tauri/src/lib.rs:1`
+**File:** `src-tauri/src/igdb.rs:32-42`
 
-`use core::panic;` is imported but never used. `panic!` is a built-in macro that doesn't need this import.
-
----
-
-### 13. `env::home_dir()` is deprecated since Rust 1.29
-
-**File:** `src-tauri/src/steam.rs:72`
-
-`std::env::home_dir()` has been deprecated because it behaves incorrectly on Windows. It can return the wrong directory.
+Several fields are declared as required (non-`Option`) even though IGDB doesn't guarantee they exist on every game:
 
 ```rust
-let mut user_dir = match env::home_dir() { ... };
-```
-
-**Fix:** Use the `dirs` crate or `tauri`'s path resolver:
-
-```rust
-let home = dirs::home_dir().ok_or("unable to get home dir")?;
-```
-
----
-
-### 14. `SteamClient` is an empty struct used only as a method namespace
-
-**File:** `src-tauri/src/steam.rs:62`
-
-`SteamClient` has zero fields but all methods take `&self`. It's essentially used as a namespace.
-
-```rust
-pub struct SteamClient {}
-
-impl SteamClient {
-    pub fn new() -> Self { SteamClient {} }
-    pub fn is_steam_game_install(&self, game_id: String) -> bool { ... }
+pub struct IgdbGameInfo {
+    cover: IgdbImage,                                  // not Option - many games have no cover
+    genres: Vec<IgdbGenre>,                            // not Option - some games have no genres
+    involved_companies: Vec<IgdbInvolvedCompany>,      // not Option - some games have no companies
+    first_release_date: i64,                           // not Option - unreleased games have no date
 }
 ```
 
-This is not wrong, but it means every method receives a useless `&self` parameter. Either add state to justify the struct (e.g., a cached steam directory path), or use free functions in a `steam` module.
+**Example of failure:** Your Steam library contains an early access game with no release date. `serde_json::from_str` fails to deserialize it because `first_release_date` is missing from the JSON. In the `get_games` batch call, this causes the **entire** deserialization to fail - not just that one game. All 500 games are lost because of one incomplete entry.
 
 ---
 
-### 15. Loading ALL environment variables into Tauri managed state
+### 5. IGDB API has a 500 result limit - no pagination
 
-**File:** `src-tauri/src/lib.rs:35-41`
+**File:** `src-tauri/src/igdb.rs:198-201`
 
-The code iterates over every environment variable on the system and puts them all in a `HashMap<String, String>` managed by Tauri. This exposes sensitive system variables (like `PATH`, `HOME`, `SSH_AUTH_SOCK`, etc.) to any code that accesses this state.
-
-```rust
-let mut config = HashMap::new();
-for (key, val) in env::vars() {
-    config.insert(key, val);
-}
-app.manage::<HashMap<String, String>>(config);
-```
-
-**Example of failure:** If you later add a Tauri command that accidentally exposes this state to the frontend, all system environment variables become accessible to the WebView (including potential secrets).
-
-**Fix:** Only load the specific variables you need:
-
-```rust
-struct AppConfig {
-    steam_api_key: String,
-    steam_profile_id: String,
-    twitch_client_id: String,
-    twitch_client_secret: String,
-}
-```
-
----
-
-## Code Duplication
-
-### 16. SQL query + row mapping duplicated between `get_games` and `get_game_by_id`
-
-**File:** `src-tauri/src/db/game.rs:23-79` vs `81-139`
-
-These two functions share identical SQL (minus a `WHERE` clause) and identical row mapping code (~30 lines each). Any schema change requires updating both in sync.
-
-**Example of failure:** You add a new column `rating` to the `games` table. You update the SQL in `get_games` but forget to update `get_game_by_id`. Now the game detail page is missing the rating while the list shows it.
-
-**Fix:** Extract the row mapping into a shared function and build the query dynamically or use a base query.
-
----
-
-### 17. `install_game` and `uninstall_game` duplicate store_id lookup
-
-**File:** `src-tauri/src/commands/game.rs:128-174`
-
-Both commands contain an identical `sqlx::query_scalar` to fetch `store_id` from `games_store`. This is 8 lines of duplicated code.
-
-**Fix:** Extract into a shared function:
-
-```rust
-async fn get_store_id(pool: &Pool<Sqlite>, game_id: i64) -> Result<String, String> { ... }
-```
-
----
-
-### 18. Publisher/developer extraction logic duplicated in IGDB client
-
-**File:** `src-tauri/src/igdb.rs:103-118` vs `158-173`
-
-The `get_game` and `get_games` methods both contain identical loops extracting publishers and developers from `involved_companies`. This logic is repeated verbatim.
-
-**Fix:** Extract into a method:
-
-```rust
-fn extract_companies(involved: &[IgdbInvolvedCompany], game_id: u64) -> (Vec<IgdbCompany>, Vec<IgdbCompany>) { ... }
-```
-
----
-
-### 19. IGDB image base URL hardcoded in multiple Vue components
-
-**Files:** `src/pages/games/[id].vue:111` and `src/components/app-sidebar/game-sidebar-item/GameSidebarItem.vue:21`
-
-The IGDB image URL pattern is written as raw string literals in two separate components:
-
-```typescript
-// [id].vue
-`https://images.igdb.com/igdb/image/upload/t_1080p/${game.value.artworks[0]}.jpg`
-
-// GameSidebarItem.vue
-`https://images.igdb.com/igdb/image/upload/t_cover_big/${props.game.cover}.jpg`
-```
-
-**Example of failure:** IGDB changes their CDN domain. You update one component but forget the other. Half the images break.
-
-**Fix:** Create a utility function:
-
-```typescript
-export function igdbImageUrl(imageId: string, size: string = 't_1080p'): string {
-    return `https://images.igdb.com/igdb/image/upload/${size}/${imageId}.jpg`
-}
-```
-
----
-
-## Frontend Issues
-
-### 20. `String` (uppercase) instead of `string` in TypeScript type
-
-**File:** `src/types/game.ts:3`
-
-```typescript
-export type GameInfo = {
-    id: number,
-    name: String,  // <-- should be lowercase 'string'
-}
-```
-
-`String` is the JavaScript wrapper object type. `string` is the primitive type. They behave differently:
-
-```typescript
-const a: String = new String("hello") // wrapper object
-const b: string = "hello"             // primitive
-
-a === b // false! Different types
-typeof a // "object"
-typeof b // "string"
-```
-
-**Example of failure:** A function expecting `string` receives a `String` wrapper. Strict equality checks fail unexpectedly. TypeScript may also not warn about certain invalid operations.
-
-**Fix:** Use lowercase `string`.
-
----
-
-### 21. `watchEffect` with async callback in game detail page
-
-**File:** `src/pages/games/[id].vue:95-102`
-
-`watchEffect` does not properly handle async callbacks. The returned Promise is ignored, meaning errors are silently swallowed and cleanup/disposal doesn't wait for the async work to complete.
-
-```typescript
-watchEffect(async () => {
-    game.value = await getGameById(id.value);
-    // ...
-})
-```
-
-**Example of failure:** User navigates rapidly between games. Multiple `getGameById` calls fire concurrently. The responses may return out of order, causing the UI to display data for a different game than the one selected (race condition).
-
-**Fix:** Use `watch` with explicit source and an `AbortController` or a guard:
-
-```typescript
-watch(id, async (newId) => {
-    game.value = await getGameById(newId);
-    // ...
-}, { immediate: true })
-```
-
----
-
-### 22. Missing `:key` on `v-for` loops for genres and developers
-
-**File:** `src/pages/games/[id].vue:16,29`
-
-```html
-<span v-for="studio in game.developers" ...>{{ studio }}</span>
-<span v-for="genre in game.genres" ...>{{ genre }}</span>
-```
-
-Vue's `v-for` without `:key` uses a "in-place patch" strategy. This can cause rendering bugs when the list changes (wrong item updated, stale DOM state, broken transitions).
-
-**Example of failure:** If genres are reordered (e.g., after a data update), Vue may reuse DOM nodes incorrectly, causing visual glitches or keeping stale attribute bindings from a previous item.
-
-**Fix:**
-
-```html
-<span v-for="(studio, index) in game.developers" :key="index">
-```
-
----
-
-### 23. No error handling or loading states on the frontend
-
-**Files:** `src/pages/games.vue`, `src/pages/games/[id].vue`, `src/stores/game.store.ts`
-
-All `invoke` calls are `await`ed with no `try/catch`, no loading indicator, and no error feedback to the user. If any backend call fails, the UI silently stays empty or in a broken state.
-
-```typescript
-// games.vue - no try/catch, no loading state
-onMounted(async () => {
-    let res: GameInfo[] = await getGames()
-    if (!res.length) {
-        await refreshGames() // can throw silently
-        res = await getGames();
-    }
-    games.value = res
-})
-```
-
-**Example of failure:** The IGDB API is down. `refreshGames()` throws an error. The promise rejects. `games.value` is never set. The sidebar is empty with no indication of what went wrong. The user thinks the app is broken.
-
-**Fix:** Add try/catch blocks with error state refs and display error messages in the UI. Add loading states while fetching.
-
----
-
-### 24. `games.vue` is a layout page that also handles data fetching
-
-**File:** `src/pages/games.vue`
-
-This page component acts as both:
-1. A **layout** (sidebar + main content area)
-2. A **data fetcher** (loads games on mount, triggers refresh)
-
-This violates single responsibility and makes it harder to reuse the layout or test the data logic independently.
-
-**Fix:** Extract data fetching into the Pinia store's initialization, or create a composable. Keep the page component focused on layout.
-
----
-
-## Architecture & Design Issues
-
-### 25. Filtering done in Rust memory instead of SQL
-
-**File:** `src-tauri/src/commands/game.rs:24-44`
-
-The `get_games` command fetches **all** games from the database, then filters them in Rust using trigrams. This loads the entire games table (with all joins) into memory on every search keystroke.
-
-```rust
-let mut games = GameRepository::get_games(&db_state.pool).await?; // loads ALL games
-if let Some(name) = query.and_then(|q| q.name) {
-    games = games.into_iter().filter(|game| { ... }).collect(); // filters in memory
-}
-```
-
-**Example of failure:** A user with 2000+ Steam games types in the search box. Every keystroke loads all 2000 games with their genres, developers, covers, and artworks from SQLite, deserializes them, then filters. This causes noticeable UI lag.
-
-**Fix:** SQLite supports the `LIKE` operator and you could use `FTS5` for full-text search. At minimum, push the `LIKE` filter to SQL and only use trigrams as a fallback.
-
----
-
-### 26. IGDB API has a 500 result limit - no pagination
-
-**File:** `src-tauri/src/igdb.rs:202`
-
-The IGDB external_games query sets `limit` to `game_ids.len()`, but IGDB's API has a maximum limit of 500 per request.
+The IGDB `external_games` query sets `limit` to `game_ids.len()`, but IGDB's API caps responses at 500 results.
 
 ```rust
 let query = format!(
@@ -545,13 +94,395 @@ let query = format!(
 
 **Example of failure:** A user with 800 Steam games triggers a refresh. The query asks for `limit 800` but IGDB caps at 500. Only 500 games are returned. 300 games silently vanish from the library.
 
-**Fix:** Paginate requests in batches of 500:
+---
+
+### 6. Steam API called over HTTP (not HTTPS)
+
+**File:** `src-tauri/src/steam.rs:46`
+
+The Steam API is called using plaintext HTTP. The API key is included as a URL query parameter, meaning it's transmitted in cleartext over the network.
 
 ```rust
-for chunk in game_ids.chunks(500) {
-    // query each chunk separately and aggregate results
+let url = format!(
+    "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={}&steamid={}...",
+    self.key, self.profile_id
+);
+```
+
+**Example of failure:** Anyone on the same network (coffee shop wifi, shared LAN) can intercept the request and read the Steam API key. The key can then be used to query the user's Steam data or abuse the API under their rate limits.
+
+---
+
+## Error Handling Issues
+
+### 7. `unwrap_or_default()` silently produces empty config values
+
+**File:** `src-tauri/src/lib.rs:37-40`
+
+Missing `.env` variables now produce empty strings instead of panicking. This is an improvement over the old `panic!`, but the failure is now silent and deferred - the app starts fine but API calls fail later with cryptic errors.
+
+```rust
+let rocade_config = RocadeConfig {
+    steam_api_key: env::var("STEAM_API_KEY").unwrap_or_default(),      // "" if missing
+    steam_profile_id: env::var("STEAM_PROFILE_ID").unwrap_or_default(), // "" if missing
+    twitch_client_id: env::var("TWITCH_CLIENT_ID").unwrap_or_default(), // "" if missing
+    twitch_client_secret: env::var("TWITCH_CLIENT_SECRET").unwrap_or_default(), // "" if missing
+};
+```
+
+**Example of failure:** A new user runs the app without a `.env` file. The app starts fine. They see the UI. They trigger a refresh. The Steam API call sends `key=&steamid=` and returns a 403 error. The IGDB client gets an empty client_id, sends a token request, and gets an authentication error. The user sees a vague error string with no indication that configuration is missing.
+
+---
+
+### 8. Multiple `expect()` calls that panic in setup
+
+**Files:** `src-tauri/src/db.rs:15,17`, `src-tauri/src/lib.rs:47`, `src-tauri/src/igdb.rs:78,86`
+
+Several `.expect()` calls in the app initialization will crash the entire application with an unhelpful panic message if they fail:
+
+```rust
+// db.rs
+let app_dir = app_handle.path().app_data_dir()
+    .expect("unable to get app directory");              // panic
+fs::create_dir_all(&app_dir)
+    .expect("unable to create app directory");           // panic
+
+// lib.rs
+let db_state = db::DatabaseState::new(handle).await
+    .expect("unable to init local db");                  // panic
+
+// igdb.rs
+HeaderValue::from_str(twitch_client.get_client_id().as_str())
+    .expect("unable to set igdb client id");             // panic
+```
+
+**Example of failure:** On a restricted Linux system, the app data directory is not writable. `fs::create_dir_all` fails. The user sees `thread 'main' panicked at 'unable to create app directory'` and the app closes. There is no dialog, no suggestion, no recovery.
+
+---
+
+### 9. `RocadeError` variants still wrap `String` instead of source errors
+
+**File:** `src-tauri/src/commands/game.rs:15-23`
+
+The custom error type is a good start, but every variant wraps `String`. This means the original error type, cause chain, and backtrace are all lost at the point of conversion.
+
+```rust
+#[derive(Debug, Serialize, Error)]
+pub enum RocadeError {
+    #[error("database error: {0}")]
+    Database(String),        // loses sqlx::Error type info
+    #[error("steam error: {0}")]
+    Steam(String),           // loses reqwest::Error type info
+    #[error("igddb error: {0}")]  // also: typo "igddb" should be "igdb"
+    Igdb(String),
 }
 ```
+
+Additionally, the underlying API modules (`steam.rs`, `igdb.rs`, `twitch.rs`) still return `Result<_, String>` directly, so the error type only exists at the command layer. This means errors are converted to String twice: once in the API module, and once wrapping into `RocadeError`.
+
+**Learning opportunity:** Look into `#[from]` attribute with `thiserror` and the `#[source]` attribute. With proper `From` impls, the `?` operator can convert errors automatically without manual `.map_err()` calls.
+
+---
+
+### 10. No error handling or loading states on the frontend
+
+**Files:** `src/stores/game.store.ts`, `src/pages/games/[id].vue`
+
+All `invoke` calls are `await`ed with no `try/catch`, no loading indicator, and no error feedback.
+
+```typescript
+// game.store.ts - no try/catch
+onMounted(async () => {
+    let res: GameInfo[] = await getGames()
+    if (!res.length) {
+        await refreshGames()  // can throw silently
+        res = await getGames();
+    }
+    games.value = res
+})
+```
+
+**Example of failure:** The IGDB API is down. `refreshGames()` throws. The promise rejects. `games.value` is never set. The sidebar is empty with no indication of what went wrong.
+
+---
+
+### 11. Publishers are fetched from IGDB but never stored in the database
+
+**File:** `src-tauri/src/db/game.rs:177-193`
+
+The `insert_complete_game` method inserts developers into the `developed_by` junction table, but `game.publishers` is completely ignored. The publisher data is fetched from IGDB, transferred through the entire pipeline, and then silently dropped at the database insert step.
+
+```rust
+// Only developers are inserted, publishers are never mentioned:
+for developer in game.developers {
+    let company_id = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO companies (igdb_id, name) VALUES (?, ?) ..."
+    )
+    // ...
+}
+// game.publishers is never used
+```
+
+**Example of failure:** You add a "Publisher" field to the game detail page. It's always empty because the data was never persisted.
+
+---
+
+## Rust Idiom Issues
+
+### 12. `trigrams` and `similarity` take `String` by value instead of `&str`
+
+**File:** `src-tauri/src/commands/game.rs:61,73`
+
+These functions take ownership of `String` values, forcing unnecessary allocations at every call site. They only need to read the string.
+
+```rust
+pub fn trigrams(s: String) -> HashSet<String> { ... }
+pub fn similarity(a: String, b: String) -> f64 { ... }
+
+// Called like this, forcing clones:
+similarity(
+    name.clone().to_ascii_lowercase(),      // clone + allocate
+    game.name.clone().to_ascii_lowercase(), // clone + allocate
+)
+```
+
+**Learning point:** In Rust, if a function only needs to *read* a string, it should take `&str`. This lets callers pass `&String`, `&str`, or string slices without copying. The `clone()` + `to_ascii_lowercase()` chain is doing two allocations when one would suffice.
+
+---
+
+### 13. `similarity` still uses explicit `return`
+
+**File:** `src-tauri/src/commands/game.rs:77`
+
+```rust
+pub fn similarity(a: String, b: String) -> f64 {
+    let tri_a = trigrams(a);
+    let tri_b = trigrams(b);
+
+    return tri_a.intersection(&tri_b).count() as f64 / tri_a.len() as f64;
+}
+```
+
+Idiomatic Rust uses the last expression as the implicit return value. The `return` keyword is typically reserved for early returns in control flow.
+
+---
+
+### 14. `SteamClient` struct and `new()` method are dead code
+
+**File:** `src-tauri/src/steam.rs:62-67`
+
+`SteamClient` is an empty struct where every method is an associated function (no `&self` parameter). The `new()` method is never called anywhere in the codebase.
+
+```rust
+pub struct SteamClient {}
+
+impl SteamClient {
+    pub fn new() -> Self { SteamClient {} }  // never called
+    fn get_steam_dir() -> Result<PathBuf, String> { ... }
+    pub fn install_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, String> { ... }
+    pub fn is_steam_game_installed(game_id: String) -> bool { ... }
+}
+
+// Called as:
+SteamClient::is_steam_game_installed(store_id);  // no instance needed
+```
+
+The struct serves purely as a namespace. In Rust, you can just use free functions in a module - that's what modules are for.
+
+---
+
+### 15. `env::home_dir()` is deprecated since Rust 1.29
+
+**File:** `src-tauri/src/steam.rs:72`
+
+`std::env::home_dir()` has been deprecated because it behaves incorrectly on Windows.
+
+```rust
+let mut user_dir = match env::home_dir() { ... };
+```
+
+Consider the `dirs` crate (`dirs::home_dir()`) or Tauri's path resolver.
+
+---
+
+### 16. Unused `window` import
+
+**File:** `src-tauri/src/commands/game.rs:12`
+
+```rust
+use tauri::{async_runtime::Mutex, window, AppHandle, State};
+//                                 ^^^^^^ unused
+```
+
+This adds noise and will trigger a compiler warning.
+
+---
+
+### 17. `futures` crate in Cargo.toml appears unused
+
+**File:** `src-tauri/Cargo.toml:26`
+
+```toml
+futures = "0.3.31"
+```
+
+No `use futures::` import appears in any Rust source file. This adds unnecessary compile time and dependency weight.
+
+---
+
+### 18. `TwitchApiClient` clones access token excessively
+
+**File:** `src-tauri/src/twitch.rs:44-50`
+
+```rust
+self.access_token = Some(parsed.access_token.clone()); // clone 1
+Ok(parsed.access_token.clone())                         // clone 2 - parsed is about to drop anyway
+
+pub fn get_access_token(&self) -> Option<String> {
+    self.access_token.clone()                           // clone 3 - every time token is checked
+}
+
+pub fn get_client_id(&self) -> String {
+    self.client_id.clone()                              // also clones every call
+}
+```
+
+**Learning point:** The second clone in `refresh_access_token` is unnecessary - `parsed.access_token` is about to be dropped, so you can move it into `self.access_token` then clone from the stored value. For `get_access_token` and `get_client_id`, consider returning `&str` references instead of cloned `String`s.
+
+---
+
+### 19. API secrets passed as URL query parameters
+
+**Files:** `src-tauri/src/steam.rs:46`, `src-tauri/src/twitch.rs:32`
+
+Both the Steam API key and Twitch client secret are embedded directly in URL query strings:
+
+```rust
+// steam.rs
+format!("http://...?key={}&steamid={}", self.key, self.profile_id)
+
+// twitch.rs
+format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}", ...)
+```
+
+If these URLs are logged (by reqwest in debug mode, by a proxy, in error messages, or in stack traces), the secrets are exposed.
+
+**Learning point:** Use `.query()` or `.form()` methods on the request builder instead of string formatting URLs. For POST requests like Twitch, the body/form approach is standard for OAuth.
+
+---
+
+## Frontend Issues
+
+### 20. `watchEffect` with async callback in game detail page
+
+**File:** `src/pages/games/[id].vue:98-105`
+
+`watchEffect` does not properly handle async callbacks. The returned Promise is ignored, meaning errors are silently swallowed and cleanup/disposal doesn't wait for the async work.
+
+```typescript
+watchEffect(async () => {
+    game.value = await getGameById(id.value);
+    if (game.value && game.value.release_date) {
+        releaseDate.value = format(new Date(game.value.release_date * 1000), "MMMM dd, yyyy")
+    }
+})
+```
+
+**Example of failure:** User navigates rapidly between games. Multiple `getGameById` calls fire concurrently. Responses return out of order. The UI displays data for a different game than the one selected (race condition).
+
+---
+
+### 21. `refreshGames` is called but not imported in the game store
+
+**File:** `src/stores/game.store.ts:1,16`
+
+```typescript
+import { getGames } from "@/commands/game.command";  // only getGames imported
+// ...
+await refreshGames()  // line 16 - not imported!
+```
+
+`refreshGames` is exported from `game.command.ts` but never imported in the store. This would cause a `ReferenceError` at runtime when the store tries to call it.
+
+---
+
+### 22. `IgdbImgSize` type does not exist
+
+**File:** `src/api/igdb.ts:1`
+
+```typescript
+import { IgdbImgSize } from "@/types/igdb";  // IgdbImgSize doesn't exist
+```
+
+The `types/igdb.ts` file exports `ImageSize` and `IgdbImage`, but not `IgdbImgSize`. This should either be `IgdbImage` (which is `t_${ImageSize}`) or `ImageSize` depending on whether the caller is expected to include the `t_` prefix.
+
+---
+
+### 23. `onMounted` inside a Pinia store is an anti-pattern
+
+**File:** `src/stores/game.store.ts:12`
+
+```typescript
+export const useGameStore = defineStore('game', () => {
+    onMounted(async () => {    // component lifecycle hook inside a store
+        let res = await getGames()
+        // ...
+    })
+})
+```
+
+`onMounted` is a **component** lifecycle hook. It works here only because the store happens to be initialized inside a component's `setup()`. If the store is ever accessed outside a component context (in a router guard, in another store, in a utility function), `onMounted` will silently do nothing.
+
+**Learning point:** Pinia stores should use explicit initialization methods or actions. A common pattern is an `init()` action that the root component calls, or using `$onAction` / `$subscribe` for side effects.
+
+---
+
+### 24. Empty `<style scoped></style>` tags in Vue components
+
+**Files:** `src/pages/games.vue`, `src/pages/games/[id].vue`, `src/components/app-sidebar/AppSidebar.vue`, `src/components/app-sidebar/game-sidebar-item/GameSidebarItem.vue`, `src/App.vue`
+
+Every component has an empty scoped style block. This adds noise and no value.
+
+---
+
+## Architecture & Design Issues
+
+### 25. Filtering done in Rust memory instead of SQL
+
+**File:** `src-tauri/src/commands/game.rs:35-56`
+
+The `get_games` command fetches **all** games from the database with all joins, then filters them in Rust using trigrams. Every search keystroke loads the entire games table into memory.
+
+```rust
+let mut games = game_repository.get_games().await?;  // loads ALL games with all joins
+if let Some(name) = query.and_then(|q| q.name) {
+    games = games.into_iter().filter(|game| { ... }).collect(); // filters in memory
+}
+```
+
+**Example of failure:** A user with 2000+ Steam games types in the search box. Every keystroke loads all 2000 games with their genres, developers, covers, and artworks from SQLite, deserializes them, then filters. This causes noticeable UI lag.
+
+---
+
+### 26. `similarity()` function is asymmetric
+
+**File:** `src-tauri/src/commands/game.rs:73-78`
+
+The similarity function divides by the length of `tri_a` (the search term), not by the union or maximum of both sets. This means `similarity("ab", "abcdefghij")` gives a very different result than `similarity("abcdefghij", "ab")`.
+
+```rust
+pub fn similarity(a: String, b: String) -> f64 {
+    let tri_a = trigrams(a);
+    let tri_b = trigrams(b);
+    return tri_a.intersection(&tri_b).count() as f64 / tri_a.len() as f64;
+    //                                                    ^^^^^^^^^^
+    //     always divides by first argument's trigram count
+}
+```
+
+**Example of failure:** Searching for "cs" (short term) gives high similarity to "Counter-Strike" because most of "cs"'s trigrams are found. But this also means short search terms match almost everything, since they have few trigrams and most of them will appear somewhere. A 2-letter search will have very few trigrams and the threshold of 0.4 will be easy to pass.
+
+**Learning point:** Standard trigram similarity (as used by PostgreSQL's `pg_trgm`) divides by the **union** of both sets: `|A ∩ B| / |A ∪ B|`. This gives a symmetric, more meaningful similarity score.
 
 ---
 
@@ -568,113 +499,72 @@ user_dir.push("Steam");
 user_dir.push("steamapps");
 ```
 
-**Example of failure:** A macOS or Windows user compiles and runs the app. `is_steam_game_install` always returns `false` because the path doesn't exist. The install/uninstall buttons show incorrect state.
-
-**Fix:** Detect the OS and use the appropriate path:
-- Linux: `~/.local/share/Steam/steamapps`
-- macOS: `~/Library/Application Support/Steam/steamapps`
-- Windows: `C:\Program Files (x86)\Steam\steamapps`
+This means `is_steam_game_installed`, `install_game`, and `uninstall_game` only work on Linux.
 
 ---
 
-### 28. `TwitchApiClient` clones access token excessively
+### 28. `prepare_db` and `insert_games` take `State` wrapper instead of inner types
 
-**File:** `src-tauri/src/twitch.rs:44-50`
+**File:** `src-tauri/src/commands/game.rs:109-122`
 
-The access token is cloned 3 times in `refresh_access_token`: once to set the field, once to return, and once in `get_access_token`. Since tokens are short strings this isn't a performance issue, but it indicates the API could be cleaner.
+These private helper functions accept `State<'_, T>` (Tauri's injection wrapper) instead of `&T`:
 
 ```rust
-self.access_token = Some(parsed.access_token.clone()); // clone 1
-Ok(parsed.access_token.clone()) // clone 2 (could just use parsed.access_token)
+async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> { ... }
+async fn insert_games(game_repository: State<'_, GameRepository>, ...) -> Result<(), sqlx::Error> { ... }
 ```
 
-**Fix:** Store the token, then return a reference or clone from the stored value:
+This unnecessarily couples internal logic to Tauri's dependency injection. These functions should take `&DatabaseState` and `&GameRepository` directly, making them testable and reusable without Tauri.
+
+---
+
+### 29. `is_steam_game_installed` reads and parses file but could use simpler check
+
+**File:** `src-tauri/src/steam.rs:110-153`
+
+The function checks if a game is installed by:
+1. Checking if the manifest file exists
+2. Reading the entire file
+3. Parsing `BytesToDownload` and `BytesDownloaded`
+4. Comparing them
+
+The bytes comparison is clever (it detects partial downloads), but the function takes `game_id: String` by value when `&str` would suffice, and the manual line parsing could use a more robust approach.
+
+Also, if the manifest file exists but is empty or malformed (missing both fields), `bytes_to_download` and `bytes_downloaded` remain `None`, and `matches!` returns `false`. This means a fully installed game whose manifest lacks these fields would be reported as not installed.
+
+---
+
+### 30. No SQLite foreign key enforcement
+
+**File:** `src-tauri/src/db.rs:21-24`
+
+SQLite requires `PRAGMA foreign_keys = ON` **per connection** to enforce foreign key constraints. This is never set:
 
 ```rust
-self.access_token = Some(parsed.access_token);
-Ok(self.access_token.clone().unwrap())
+let connection = SqliteConnectOptions::new()
+    .filename(&db_path)
+    .create_if_missing(true)
+    .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+// No .pragma("foreign_keys", "ON")
 ```
 
----
-
-### 29. Inconsistent naming conventions
-
-**Files:** Multiple
-
-- `connexion` (French) in `db.rs:21` - rest of codebase is English
-- `is_steam_game_install` in `steam.rs:118` - should be `is_steam_game_installed` (adjective, not verb)
-- `store_id` in the database refers to a Steam app ID but the name is generic
-- `studios` alias in SQL queries while the table is now `companies`
-
-These inconsistencies make the code harder to navigate and understand at a glance.
+This means the database accepts orphaned references (e.g., a `belongs_to` row pointing to a deleted game or genre) without error. Data integrity depends entirely on application code being correct.
 
 ---
 
-### 30. `GameRepository` is a stateless empty struct
+### 31. Inconsistent naming: `studios` alias in SQL while table is `companies`
 
-**File:** `src-tauri/src/db/game.rs:20-21`
+**File:** `src-tauri/src/db/game.rs:32`
 
-```rust
-pub struct GameRepository {}
+```sql
+json_group_array(distinct companies.name) as studios,
 ```
 
-All methods are `pub async fn method(pool: &Pool<Sqlite>, ...)` - they take the pool as an argument rather than from `self`. The struct exists purely as a namespace for static methods.
-
-**Fix:** Either give it state (hold a reference to the pool) or just use free functions in the `game` module:
-
-```rust
-// Option A: Stateful
-pub struct GameRepository<'a> {
-    pool: &'a Pool<Sqlite>,
-}
-
-// Option B: Just functions
-pub async fn get_games(pool: &Pool<Sqlite>) -> Result<Vec<Game>, sqlx::Error> { ... }
-```
+The table was renamed from `studios` to `companies` (migration 11), but the SQL alias still says `studios`. The Rust mapping code also uses `"studios"` as the column name (`row.get("studios")`). While technically functional, this is confusing - reading the code suggests a `studios` table that doesn't exist.
 
 ---
 
-## Minor / Style Issues
-
-### 31. Inconsistent whitespace and formatting
-
-**Files:** `src-tauri/src/lib.rs`
-
-Mixed indentation depth, double blank lines, and inconsistent spacing around parentheses:
-
-```rust
-             dotenvy::dotenv().ok();   // extra indentation (line 33)
-
-            let mut config = HashMap::new();  // different indentation
-
-tauri::async_runtime::block_on(  async {  // space before async
-```
-
-**Fix:** Run `cargo fmt` consistently.
-
----
-
-### 32. Empty `<style scoped></style>` tags in Vue components
-
-**Files:** `src/pages/games.vue:35`, `src/pages/games/[id].vue:134`, `src/components/app-sidebar/AppSidebar.vue:33`, `src/components/app-sidebar/game-sidebar-item/GameSidebarItem.vue:26`
-
-Every component has an empty scoped style block. This adds noise and no value.
-
----
-
-### 33. `futures` crate in Cargo.toml appears unused
-
-**File:** `src-tauri/Cargo.toml:26`
-
-```toml
-futures = "0.3.31"
-```
-
-No `use futures::` import appears in any Rust source file. This adds unnecessary compile time.
-
----
-
-### 34. Migration history contains schema churn
+### 32. Migration history contains schema churn
 
 **Files:** `src-tauri/migrations/`
 
@@ -686,7 +576,7 @@ The migrations contain back-and-forth changes:
 - Migration 9 creates `studios`
 - Migration 11 renames it to `companies`
 
-While this is fine during active development, before a release these should be squashed into a clean initial schema. Running 12 migrations on first install (including drops and renames) is slower and harder to audit than a single clean migration.
+Before a release, these should be squashed into a clean initial schema. Running 12 migrations on first install (including drops and renames) is slower and harder to audit than a single clean migration.
 
 ---
 
@@ -694,19 +584,34 @@ While this is fine during active development, before a release these should be s
 
 | Priority | Issue | Impact |
 |----------|-------|--------|
-| Critical | Transaction bug (#1) | Orphaned data in database |
-| Critical | Trigram panic on UTF-8 (#2) | App crash on search |
-| Critical | INNER JOIN drops games (#3) | Games silently missing |
-| Critical | No migration runner (#5) | App unusable on fresh install |
-| High | Destructive refresh (#4) | Data loss on API failure |
-| High | IGDB 500 limit (#26) | Games silently missing |
-| High | No error handling frontend (#23) | Silent failures, blank UI |
-| High | All env vars in state (#15) | Security risk |
-| Medium | `panic!` on missing config (#6) | Crash without explanation |
-| Medium | No error types (#7) | Poor error diagnostics |
-| Medium | watchEffect async race (#21) | Wrong game displayed |
+| Critical | INNER JOIN drops games (#1) | Games silently missing from library |
+| Critical | No migration runner (#3) | App unusable on fresh install |
+| Critical | Non-optional IGDB fields (#4) | Entire batch deserialization fails |
+| Critical | `refreshGames` not imported (#21) | Runtime crash on first use |
+| Critical | `IgdbImgSize` type missing (#22) | TypeScript compilation error |
+| High | Destructive refresh (#2) | Data loss on API failure |
+| High | IGDB 500 limit (#5) | Games silently missing |
+| High | HTTP for Steam API (#6) | API key transmitted in cleartext |
+| High | No frontend error handling (#10) | Silent failures, blank UI |
+| High | Publishers never stored (#11) | Data silently dropped |
+| Medium | Silent empty config (#7) | Cryptic errors when .env missing |
+| Medium | `expect()` panics (#8) | App crash with no recovery |
+| Medium | Error type improvement (#9) | Poor error diagnostics |
+| Medium | watchEffect async race (#20) | Wrong game displayed |
 | Medium | Filtering in memory (#25) | Performance on large libraries |
-| Medium | Duplicated code (#16-19) | Maintenance burden |
-| Low | Idiomatic Rust (#9-14) | Code readability |
-| Low | TypeScript `String` (#20) | Type safety |
-| Low | Style issues (#31-34) | Code cleanliness |
+| Medium | Asymmetric similarity (#26) | Inconsistent search results |
+| Medium | `onMounted` in store (#23) | Fragile initialization |
+| Medium | Secrets in URL params (#19) | Credential leakage risk |
+| Medium | No FK enforcement (#30) | Data integrity risk |
+| Low | `String` by value (#12) | Unnecessary allocations |
+| Low | Explicit return (#13) | Non-idiomatic Rust |
+| Low | Dead `SteamClient` code (#14) | Code noise |
+| Low | Deprecated `home_dir` (#15) | Future compatibility |
+| Low | Unused imports (#16) | Compiler warnings |
+| Low | Unused `futures` crate (#17) | Unnecessary build time |
+| Low | Excessive cloning (#18) | Minor performance |
+| Low | Empty style tags (#24) | Code noise |
+| Low | Steam Linux-only (#27) | No cross-platform |
+| Low | `State` in helpers (#28) | Testability |
+| Low | `studios` alias (#31) | Confusing naming |
+| Low | Migration churn (#32) | Maintenance burden |
