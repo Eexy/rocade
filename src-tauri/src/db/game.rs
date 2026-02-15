@@ -33,13 +33,13 @@ select
     json_group_array(distinct artworks.artwork_id) as artworks, 
     json_group_array(distinct covers.cover_id) as covers
 from games
-inner join developed_by on games.id = developed_by.game_id
-inner join companies on developed_by.studio_id = companies.id
-inner join belongs_to on games.id = belongs_to.game_id
-inner join genres on belongs_to.genre_id = genres.id
-inner join artworks on artworks.game_id = games.id
-inner join covers on covers.game_id = games.id
-inner join games_store on games_store.game_id = games.id
+left join developed_by on games.id = developed_by.game_id
+left join companies on developed_by.studio_id = companies.id
+left join belongs_to on games.id = belongs_to.game_id
+left join genres on belongs_to.genre_id = genres.id
+left join artworks on artworks.game_id = games.id
+left join covers on covers.game_id = games.id
+left join games_store on games_store.game_id = games.id
 ";
 
     const GROUP_ORDER: &'static str = "
@@ -140,12 +140,13 @@ order by games.name
             .execute(&mut *tx)
             .await?;
 
-        // Insert cover if provided
-        sqlx::query("INSERT INTO covers (game_id, cover_id) VALUES (?, ?)")
-            .bind(id)
-            .bind(&game.cover.image_id)
-            .execute(&mut *tx)
-            .await?;
+        if let Some(cover_id) = game.cover.as_ref().map(|cover| &cover.image_id) {
+            sqlx::query("INSERT INTO covers (game_id, cover_id) VALUES (?, ?)")
+                .bind(id)
+                .bind(cover_id)
+                .execute(&mut *tx)
+                .await?;
+        }
 
         // Insert artworks
         if let Some(artworks) = game.artworks {
@@ -159,7 +160,7 @@ order by games.name
         }
 
         // Insert genres
-        for genre in game.genres {
+        for genre in game.genres.iter().flatten() {
             // Insert genre if it doesn't exist (ON CONFLICT DO UPDATE NAME)
             let genre_id = sqlx::query_scalar::<_, i64>("INSERT INTO genres (name) VALUES (?) ON CONFLICT(name) DO update set name = name returning id")
                 .bind(&genre.name)
@@ -174,7 +175,7 @@ order by games.name
         }
 
         // Insert developers
-        for developer in game.developers {
+        for developer in game.developers.iter().flatten() {
             let company_id = sqlx::query_scalar::<_, i64>(
                 "INSERT INTO companies (igdb_id, name) VALUES (?, ?) 
              ON CONFLICT(igdb_id) DO UPDATE SET igdb_id = igdb_id 

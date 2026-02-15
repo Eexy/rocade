@@ -32,13 +32,13 @@ pub struct IgdbInvolvedCompany {
 pub struct IgdbGameInfo {
     id: u64,
     name: String,
-    cover: IgdbImage,
-    genres: Vec<IgdbGenre>,
+    cover: Option<IgdbImage>,
+    genres: Option<Vec<IgdbGenre>>,
     storyline: Option<String>,
-    involved_companies: Vec<IgdbInvolvedCompany>,
+    involved_companies: Option<Vec<IgdbInvolvedCompany>>,
     summary: Option<String>,
     artworks: Option<Vec<IgdbImage>>,
-    first_release_date: i64,
+    first_release_date: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,12 +48,12 @@ pub struct IgdbGame {
     pub store_id: Option<String>,
     storyline: Option<String>,
     pub summary: Option<String>,
-    pub genres: Vec<IgdbGenre>,
-    pub cover: IgdbImage,
+    pub genres: Option<Vec<IgdbGenre>>,
+    pub cover: Option<IgdbImage>,
     pub artworks: Option<Vec<IgdbImage>>,
-    pub publishers: Vec<IgdbCompany>,
-    pub developers: Vec<IgdbCompany>,
-    pub release_date: i64,
+    pub publishers: Option<Vec<IgdbCompany>>,
+    pub developers: Option<Vec<IgdbCompany>>,
+    pub release_date: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -122,13 +122,17 @@ impl IgdbApiClient {
 
     fn extract_game_companies(
         &self,
-        companies: Vec<IgdbInvolvedCompany>,
+        companies: Option<Vec<IgdbInvolvedCompany>>,
         game_id: u64,
-    ) -> (Vec<IgdbCompany>, Vec<IgdbCompany>) {
+    ) -> (Option<Vec<IgdbCompany>>, Option<Vec<IgdbCompany>>) {
         let mut publishers: Vec<IgdbCompany> = Vec::new();
         let mut developers: Vec<IgdbCompany> = Vec::new();
 
-        for involved in companies {
+        if companies.is_none() {
+            return (None, None);
+        }
+
+        for involved in companies.iter().flatten() {
             if let Some(published) = &involved.company.published {
                 if published.contains(&game_id) {
                     publishers.push(involved.company.clone());
@@ -142,7 +146,7 @@ impl IgdbApiClient {
             }
         }
 
-        (publishers, developers)
+        (Some(publishers), Some(developers))
     }
 
     pub async fn get_games(&mut self, steam_games_ids: Vec<u64>) -> Result<Vec<IgdbGame>, String> {
