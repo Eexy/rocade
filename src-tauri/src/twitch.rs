@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tauri_plugin_http::reqwest::Client;
+use tauri_plugin_http::reqwest::{self, Client};
 
 #[derive(Debug)]
 pub struct TwitchApiClient {
@@ -12,6 +12,15 @@ pub struct TwitchApiClient {
 #[derive(Deserialize)]
 pub struct TwitchAuthResponse {
     access_token: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TwitchError {
+    #[error("http request failed: {0}")]
+    Request(#[from] reqwest::Error),
+
+    #[error("unable to parse data: {0}")]
+    InvalidData(#[from] serde_json::Error),
 }
 
 impl TwitchApiClient {
@@ -28,18 +37,13 @@ impl TwitchApiClient {
         self.client_id.clone()
     }
 
-    pub async fn refresh_access_token(&mut self) -> Result<String, String> {
+    pub async fn refresh_access_token(&mut self) -> Result<String, TwitchError> {
         let url = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&grant_type=client_credentials", self.client_id, self.client_secret);
-        let res = self
-            .client
-            .post(url)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
+        let res = self.client.post(url).send().await?;
 
-        let body = res.text().await.map_err(|e| e.to_string())?;
+        let body = res.text().await?;
 
-        let parsed: TwitchAuthResponse = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+        let parsed: TwitchAuthResponse = serde_json::from_str(&body)?;
 
         self.access_token = Some(parsed.access_token.clone());
 

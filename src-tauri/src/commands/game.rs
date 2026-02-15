@@ -5,21 +5,30 @@ use crate::{
         game::{Game, GameRepository},
         DatabaseState,
     },
-    igdb::{IgdbApiClient, IgdbGame},
-    steam::{SteamApiClient, SteamClient},
+    igdb::{IgdbApiClient, IgdbError, IgdbGame},
+    steam::{SteamApiClient, SteamClient, SteamError},
 };
 use serde::{Deserialize, Serialize};
 use tauri::{async_runtime::Mutex, AppHandle, State};
 use thiserror::Error;
 
-#[derive(Debug, Serialize, Error)]
+#[derive(Debug, Error)]
 pub enum RocadeError {
     #[error("database error: {0}")]
-    Database(String),
+    Database(#[from] sqlx::Error),
     #[error("steam error: {0}")]
-    Steam(String),
-    #[error("igddb error: {0}")]
-    Igdb(String),
+    Steam(#[from] SteamError),
+    #[error("igdb error: {0}")]
+    Igdb(#[from] IgdbError),
+}
+
+impl Serialize for RocadeError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -32,10 +41,7 @@ pub async fn get_games(
     game_repository: State<'_, GameRepository>,
     query: Option<GameQuery>,
 ) -> Result<Vec<Game>, RocadeError> {
-    let mut games = game_repository
-        .get_games()
-        .await
-        .map_err(|e| RocadeError::Database(e.to_string()))?;
+    let mut games = game_repository.get_games().await?;
 
     if let Some(name) = query.and_then(|q| q.name) {
         games = games
@@ -81,24 +87,17 @@ pub async fn refresh_games(
     db_state: State<'_, DatabaseState>,
     game_repository: State<'_, GameRepository>,
 ) -> Result<(), RocadeError> {
-    let games_res = steam_client
-        .get_games()
-        .await
-        .map_err(|e| RocadeError::Steam(e.to_string()))?;
+    let games_res = steam_client.get_games().await?;
+
     let mut locked_client = igdb_client.lock().await;
 
     let igdb_games = locked_client
         .get_games(games_res.iter().map(|game| game.appid).collect())
-        .await
-        .map_err(|e| RocadeError::Igdb(e.to_string()))?;
+        .await?;
 
-    prepare_db(db_state.clone())
-        .await
-        .map_err(|e| RocadeError::Database(e.to_string()))?;
+    prepare_db(db_state.clone()).await?;
 
-    insert_games(game_repository, igdb_games)
-        .await
-        .map_err(|e| RocadeError::Database(e.to_string()))?;
+    insert_games(game_repository, igdb_games).await?;
 
     Ok(())
 }
@@ -123,10 +122,7 @@ pub async fn get_game(
     game_repository: State<'_, GameRepository>,
     game_id: i64,
 ) -> Result<Game, RocadeError> {
-    let mut game = game_repository
-        .get_game_by_id(game_id)
-        .await
-        .map_err(|e| RocadeError::Database(e.to_string()))?;
+    let mut game = game_repository.get_game_by_id(game_id).await?;
 
     let mut is_installed = false;
 
@@ -145,12 +141,9 @@ pub async fn install_game(
     app: AppHandle,
     game_id: i64,
 ) -> Result<bool, RocadeError> {
-    let store_id = game_repository
-        .get_game_store_id(game_id)
-        .await
-        .map_err(|e| RocadeError::Database(e.to_string()))?;
+    let store_id = game_repository.get_game_store_id(game_id).await?;
 
-    SteamClient::install_game(app, store_id).map_err(|e| RocadeError::Steam(e.to_string()))?;
+    SteamClient::install_game(app, store_id)?;
 
     Ok(true)
 }
@@ -161,11 +154,8 @@ pub async fn uninstall_game(
     app: AppHandle,
     game_id: i64,
 ) -> Result<bool, RocadeError> {
-    let store_id = game_repository
-        .get_game_store_id(game_id)
-        .await
-        .map_err(|e| RocadeError::Database(e.to_string()))?;
+    let store_id = game_repository.get_game_store_id(game_id).await?;
 
-    SteamClient::uninstall_game(app, store_id).map_err(|e| RocadeError::Steam(e.to_string()))?;
+    SteamClient::uninstall_game(app, store_id)?;
     Ok(true)
 }

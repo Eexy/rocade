@@ -2,8 +2,23 @@ use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
-use tauri_plugin_http::reqwest::Client;
+use tauri_plugin_http::reqwest::{self, Client};
 use tauri_plugin_opener::OpenerExt;
+
+#[derive(Debug, thiserror::Error)]
+pub enum SteamError {
+    #[error("http request failed: {0}")]
+    Request(#[from] reqwest::Error),
+
+    #[error("invalid response: {0}")]
+    InvalidResponse(String),
+
+    #[error("unable to parse steam data: {0}")]
+    InvalidData(#[from] serde_json::Error),
+
+    #[error("unable to communicate with steam client: {0}")]
+    ClientError(#[from] tauri_plugin_opener::Error),
+}
 
 #[derive(Debug)]
 pub struct SteamApiClient {
@@ -42,7 +57,7 @@ impl SteamApiClient {
         }
     }
 
-    pub async fn get_games(&self) -> Result<Vec<SteamGame>, String> {
+    pub async fn get_games(&self) -> Result<Vec<SteamGame>, SteamError> {
         let url = format!("https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001");
         let res = self
             .client
@@ -54,12 +69,11 @@ impl SteamApiClient {
                 ("format", &"json".to_string()),
             ])
             .send()
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
 
-        let body = res.text().await.map_err(|e| e.to_string())?;
+        let body = res.text().await?;
 
-        let parsed: GameListResponse = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+        let parsed: GameListResponse = serde_json::from_str(&body)?;
 
         Ok(parsed.response.games)
     }
@@ -95,20 +109,21 @@ impl SteamClient {
         Ok(steam_dir)
     }
 
-    pub fn install_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, String> {
+    pub fn install_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, SteamError> {
         app_handle
             .opener()
-            .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)
-            .map_err(|e| e.to_string())?;
+            .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)?;
 
         Ok(true)
     }
 
-    pub fn uninstall_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, String> {
+    pub fn uninstall_game(
+        app_handle: AppHandle,
+        steam_game_id: String,
+    ) -> Result<bool, SteamError> {
         app_handle
             .opener()
-            .open_url(format!("steam://uninstall/{}", steam_game_id), None::<&str>)
-            .map_err(|e| e.to_string())?;
+            .open_url(format!("steam://uninstall/{}", steam_game_id), None::<&str>)?;
 
         Ok(true)
     }
