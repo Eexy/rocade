@@ -33,19 +33,12 @@ pub fn run() {
 
             dotenvy::dotenv().ok();
 
-            let mut rocade_config = RocadeConfig::new();
-
-            for (key, val) in env::vars() {
-                if key == "STEAM_API_KEY" {
-                    rocade_config.steam_api_key = val;
-                } else if key == "STEAM_PROFILE_ID" {
-                    rocade_config.steam_profile_id = val;
-                } else if key == "TWITCH_CLIENT_SECRET" {
-                    rocade_config.twitch_client_secret = val;
-                } else if key == "TWITCH_CLIENT_ID" {
-                    rocade_config.twitch_client_id = val
-                }
-            }
+            let rocade_config = RocadeConfig {
+                steam_api_key: env::var("STEAM_API_KEY").unwrap_or_default(),
+                steam_profile_id: env::var("STEAM_PROFILE_ID").unwrap_or_default(),
+                twitch_client_id: env::var("TWITCH_CLIENT_ID").unwrap_or_default(),
+                twitch_client_secret: env::var("TWITCH_CLIENT_SECRET").unwrap_or_default(),
+            };
 
             tauri::async_runtime::block_on(async {
                 let handle = app.app_handle();
