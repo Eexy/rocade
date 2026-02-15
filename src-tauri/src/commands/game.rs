@@ -74,7 +74,7 @@ pub fn similarity(a: String, b: String) -> f64 {
     let tri_a = trigrams(a);
     let tri_b = trigrams(b);
 
-    return tri_a.intersection(&tri_b).count() as f64 / tri_a.len() as f64;
+    tri_a.intersection(&tri_b).count() as f64 / tri_a.len() as f64
 }
 
 #[tauri::command]
