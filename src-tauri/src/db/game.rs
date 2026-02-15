@@ -92,23 +92,22 @@ order by games.name
             id: row.get("id"),
             release_date: row.get("release_date"),
             name: row.get("name"),
-            developers: studios_json
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-            genres: genres_json
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+            developers: Self::parse_json_array(studios_json),
+            genres: Self::parse_json_array(genres_json),
             is_installed: None,
             summary: row.get("summary"),
-            artworks: artworks_json
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
-            cover: covers_json
-                .as_ref()
-                .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
-                .and_then(|mut v| v.pop()),
+            artworks: Self::parse_json_array(artworks_json),
+            cover: Self::parse_json_array(covers_json).and_then(|mut v: Vec<String>| v.pop()),
             store_id: row.get("store_id"),
         }
+    }
+
+    fn parse_json_array(json: Option<String>) -> Option<Vec<String>> {
+        json.and_then(|s| {
+            serde_json::from_str::<Vec<Option<String>>>(&s)
+                .ok()
+                .map(|v| v.into_iter().flatten().collect())
+        })
     }
 
     pub async fn get_game_store_id(&self, game_id: i64) -> Result<String, sqlx::Error> {
