@@ -43,10 +43,16 @@ impl SteamApiClient {
     }
 
     pub async fn get_games(&self) -> Result<Vec<SteamGame>, String> {
-        let url = format!("https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={}&steamid={}&include_appinfo=1&format=json", self.key, self.profile_id);
+        let url = format!("https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001");
         let res = self
             .client
             .get(url)
+            .query(&[
+                ("key", &self.key),
+                ("steamid", &self.profile_id),
+                ("include_appinfo", &"1".to_string()),
+                ("format", &"json".to_string()),
+            ])
             .send()
             .await
             .map_err(|e| e.to_string())?;
