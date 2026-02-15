@@ -57,20 +57,16 @@ pub fn run() {
                 app.manage::<GameRepository>(game_repository)
             });
 
-            let steam_api_client = SteamApiClient::new(
-                rocade_config.steam_api_key.clone(),
-                rocade_config.steam_profile_id.clone(),
-            );
+            let steam_api_client =
+                SteamApiClient::new(rocade_config.steam_api_key, rocade_config.steam_profile_id);
             app.manage::<SteamApiClient>(steam_api_client);
 
             let twitch_api_client = TwitchApiClient::new(
-                rocade_config.twitch_client_id.clone(),
-                rocade_config.twitch_client_secret.clone(),
+                rocade_config.twitch_client_id,
+                rocade_config.twitch_client_secret,
             );
             let igdb_api_client = Mutex::new(IgdbApiClient::new(twitch_api_client));
             app.manage::<Mutex<IgdbApiClient>>(igdb_api_client);
-
-            app.manage::<RocadeConfig>(rocade_config);
 
             Ok(())
         })
