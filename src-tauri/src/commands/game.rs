@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 
 use crate::{
+    client::steam::SteamClient,
     db::{
         game::{Game, GameRepository},
         DatabaseState,
     },
     igdb::{IgdbApiClient, IgdbError, IgdbGame},
-    steam::{SteamApiClient, SteamClient, SteamError},
+    service::steam::{SteamApiClient, SteamError},
 };
 use serde::{Deserialize, Serialize};
 use tauri::{async_runtime::Mutex, AppHandle, State};

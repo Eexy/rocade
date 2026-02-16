@@ -3,18 +3,20 @@ use std::{env, path::PathBuf};
 use tauri::{async_runtime::Mutex, Manager};
 
 use crate::{
+    client::steam::SteamClient,
     config::{RocadeConfig, RocadeConfigError},
     db::{game::GameRepository, DatabaseState},
     igdb::IgdbApiClient,
-    steam::{SteamApiClient, SteamClient},
+    service::steam::SteamApiClient,
     twitch::TwitchApiClient,
 };
 
+mod client;
 mod commands;
 mod config;
 mod db;
 mod igdb;
-mod steam;
+mod service;
 mod twitch;
 
 pub use commands::{get_game, get_games, install_game, refresh_games, uninstall_game};
