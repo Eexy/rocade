@@ -1,3 +1,10 @@
+//! Tauri commands for game management.
+//!
+//! Exposes the application's game-related operations to the frontend:
+//! listing and searching games, refreshing the library from Steam and IGDB,
+//! retrieving a single game with its install status, and triggering
+//! Steam install/uninstall actions.
+
 use std::collections::HashSet;
 
 use crate::{
@@ -13,12 +20,19 @@ use serde::{Deserialize, Serialize};
 use tauri::{async_runtime::Mutex, AppHandle, State};
 use thiserror::Error;
 
+/// Top-level error type returned by all Tauri commands in this module.
+///
+/// Serialized as a plain string message so the frontend receives a
+/// human-readable error rather than a structured object.
 #[derive(Debug, Error)]
 pub enum RocadeError {
+    /// A database operation failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// A Steam API or client operation failed.
     #[error("steam error: {0}")]
     Steam(#[from] SteamError),
+    /// An IGDB API operation failed.
     #[error("igdb error: {0}")]
     Igdb(#[from] IgdbError),
 }
@@ -32,11 +46,18 @@ impl Serialize for RocadeError {
     }
 }
 
+/// Optional filter parameters accepted by [`get_games`].
 #[derive(Deserialize, Debug)]
 pub struct GameQuery {
+    /// When set, only games whose name matches this string are returned.
     name: Option<String>,
 }
 
+/// Returns all games in the local database, optionally filtered by name.
+///
+/// Filtering applies a case-insensitive substring check first; if that
+/// fails, a trigram similarity score above `0.4` is used as a fallback
+/// for fuzzy matching.
 #[tauri::command]
 pub async fn get_games(
     game_repository: State<'_, GameRepository>,
@@ -62,6 +83,11 @@ pub async fn get_games(
     Ok(games)
 }
 
+/// Computes the set of trigrams for a string.
+///
+/// The input is padded with two leading spaces and one trailing space before
+/// extracting all overlapping three-character windows. Used by [`similarity`]
+/// for fuzzy name matching.
 pub fn trigrams(s: &str) -> HashSet<String> {
     let s_with_spaces = format!("  {} ", s);
     let chars: Vec<char> = s_with_spaces.chars().collect();
@@ -74,6 +100,10 @@ pub fn trigrams(s: &str) -> HashSet<String> {
     hashset
 }
 
+/// Returns a trigram-based similarity score between two strings in `[0.0, 1.0]`.
+///
+/// Computed as `|trigrams(a) ∩ trigrams(b)| / |trigrams(a)|`. A score of
+/// `1.0` means `a`'s trigrams are a subset of `b`'s; `0.0` means no overlap.
 pub fn similarity(a: &str, b: &str) -> f64 {
     let tri_a = trigrams(a);
     let tri_b = trigrams(b);
@@ -81,6 +111,11 @@ pub fn similarity(a: &str, b: &str) -> f64 {
     tri_a.intersection(&tri_b).count() as f64 / tri_a.len() as f64
 }
 
+/// Refreshes the local game library from Steam and IGDB.
+///
+/// Fetches the user's owned games from Steam, enriches each entry with
+/// metadata from IGDB (cover art, genres, companies, etc.), wipes the
+/// existing database records, and inserts the updated set.
 #[tauri::command]
 pub async fn refresh_games(
     steam_client: State<'_, SteamApiClient>,
@@ -103,10 +138,13 @@ pub async fn refresh_games(
     Ok(())
 }
 
+/// Clears all existing game records from the database in preparation for a
+/// fresh import.
 async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
     db_state.clean().await
 }
 
+/// Inserts a batch of IGDB games into the database.
 async fn insert_games(
     game_repository: State<'_, GameRepository>,
     games: Vec<IgdbGame>,
@@ -118,6 +156,11 @@ async fn insert_games(
     Ok(())
 }
 
+/// Returns a single game by its database ID, with its current install status.
+///
+/// Looks up the game's Steam store ID and checks the local Steam library to
+/// determine whether the game is fully installed, then sets `is_installed`
+/// on the returned record.
 #[tauri::command]
 pub async fn get_game(
     game_repository: State<'_, GameRepository>,
@@ -137,6 +180,11 @@ pub async fn get_game(
     Ok(game)
 }
 
+/// Triggers installation of a game via the Steam client.
+///
+/// Resolves the game's Steam store ID from the database and opens the
+/// `steam://install/<id>` URL. Returns `true` if the URL was dispatched
+/// successfully; the actual download is handled asynchronously by Steam.
 #[tauri::command]
 pub async fn install_game(
     game_repository: State<'_, GameRepository>,
@@ -150,6 +198,11 @@ pub async fn install_game(
     Ok(true)
 }
 
+/// Triggers uninstallation of a game via the Steam client.
+///
+/// Resolves the game's Steam store ID from the database and opens the
+/// `steam://uninstall/<id>` URL. Returns `true` if the URL was dispatched
+/// successfully.
 #[tauri::command]
 pub async fn uninstall_game(
     game_repository: State<'_, GameRepository>,
