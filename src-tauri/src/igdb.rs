@@ -116,7 +116,8 @@ pub struct IgdbApiClient {
 #[derive(Deserialize, Debug)]
 pub struct IgdbAlternativeGame {
     /// IGDB internal game ID.
-    game: u64,
+    #[serde(rename = "game")]
+    id: u64,
     /// External store identifier (Steam App ID when `external_game_source = 1`).
     uid: String,
 }
@@ -160,7 +161,7 @@ impl IgdbApiClient {
 
         let store_id = steam_game_id.to_string();
 
-        let game_info = self.get_game_info(steam_game.game).await?;
+        let game_info = self.get_game_info(steam_game.id).await?;
 
         let (publishers, developers) =
             self.extract_game_companies(game_info.involved_companies, game_info.id);
@@ -233,11 +234,11 @@ impl IgdbApiClient {
         let mut steam_ids_map = HashMap::new();
 
         for game in &steam_games {
-            steam_ids_map.insert(game.game, game.uid.clone());
+            steam_ids_map.insert(game.id, game.uid.clone());
         }
 
         let games_infos = self
-            .get_games_infos(steam_games.iter().map(|game| game.game).collect())
+            .get_games_infos(steam_games.iter().map(|game| game.id).collect())
             .await?;
 
         let parsed: Vec<_> = games_infos
