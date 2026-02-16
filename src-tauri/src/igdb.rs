@@ -1,3 +1,9 @@
+//! IGDB (Internet Game Database) API client.
+//!
+//! Provides types and an async client for querying game metadata from the
+//! [IGDB API](https://api-docs.igdb.com/). Authentication is handled via a
+//! Twitch OAuth token managed by [`TwitchApiClient`].
+
 use std::collections::HashMap;
 
 use crate::twitch::{TwitchApiClient, TwitchError};
@@ -5,29 +11,42 @@ use serde::{Deserialize, Serialize};
 use tauri::http::{HeaderMap, HeaderValue, StatusCode};
 use tauri_plugin_http::reqwest::{self, Client, Response};
 
+/// A game genre as returned by the IGDB API.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGenre {
     pub name: String,
 }
 
+/// An image asset (cover art or artwork) as returned by the IGDB API.
+///
+/// The `image_id` can be used to build an image URL via the
+/// [IGDB Images endpoint](https://api-docs.igdb.com/#images).
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbImage {
     pub image_id: String,
 }
 
+/// A game company (publisher or developer) as returned by the IGDB API.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct IgdbCompany {
     pub id: i64,
     pub name: String,
+    /// IDs of games this company has published.
     published: Option<Vec<u64>>,
+    /// IDs of games this company has developed.
     developed: Option<Vec<u64>>,
 }
 
+/// An IGDB `involved_company` entry, linking a game to a company with a role.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbInvolvedCompany {
     company: IgdbCompany,
 }
 
+/// Raw game data as returned directly by the IGDB `/games` endpoint.
+///
+/// This is an intermediate representation. Use [`IgdbGame`] for the
+/// processed, caller-facing version.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGameInfo {
     id: u64,
@@ -38,13 +57,19 @@ pub struct IgdbGameInfo {
     involved_companies: Option<Vec<IgdbInvolvedCompany>>,
     summary: Option<String>,
     artworks: Option<Vec<IgdbImage>>,
+    /// Unix timestamp of the game's first release.
     first_release_date: Option<i64>,
 }
 
+/// Processed game metadata ready for use by the rest of the application.
+///
+/// Constructed from [`IgdbGameInfo`] after resolving companies and
+/// mapping the Steam store ID.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IgdbGame {
     id: u64,
     pub name: String,
+    /// Steam store ID associated with this game entry, if available.
     pub store_id: Option<String>,
     storyline: Option<String>,
     pub summary: Option<String>,
@@ -53,37 +78,55 @@ pub struct IgdbGame {
     pub artworks: Option<Vec<IgdbImage>>,
     pub publishers: Option<Vec<IgdbCompany>>,
     pub developers: Option<Vec<IgdbCompany>>,
+    /// Unix timestamp of the game's first release.
     pub release_date: Option<i64>,
 }
 
+/// Errors that can occur while using the IGDB API client.
 #[derive(Debug, thiserror::Error)]
 pub enum IgdbError {
+    /// An HTTP request to the IGDB API failed.
     #[error("http request failed: {0}")]
     Request(#[from] reqwest::Error),
 
+    /// Fetching or refreshing the Twitch access token failed.
     #[error("twitch failed: {0}")]
     Twitch(#[from] TwitchError),
 
+    /// The response body could not be deserialized into the expected type.
     #[error("unable to parse igdb data: {0}")]
     InvalidData(#[from] serde_json::Error),
 
+    /// No matching game was found for the given identifier.
     #[error("unable to find game: {0}")]
     NoData(String),
 }
 
+/// Async client for the IGDB API.
+///
+/// Uses a [`TwitchApiClient`] to obtain and refresh Bearer tokens, which are
+/// required by the IGDB API for authentication.
 #[derive(Debug)]
 pub struct IgdbApiClient {
     twitch_client: TwitchApiClient,
     client: Client,
 }
 
+/// An IGDB external-game record that maps an IGDB game ID to a Steam UID.
 #[derive(Deserialize, Debug)]
 pub struct IgdbAlternativeGame {
+    /// IGDB internal game ID.
     game: u64,
+    /// External store identifier (Steam App ID when `external_game_source = 1`).
     uid: String,
 }
 
 impl IgdbApiClient {
+    /// Creates a new IGDB API client.
+    ///
+    /// Builds the underlying HTTP client with the Twitch `CLIENT-ID` header
+    /// pre-configured. Bearer tokens are fetched lazily on each request via
+    /// the provided `twitch_client`.
     pub fn new(twitch_client: TwitchApiClient) -> Self {
         let mut headers = HeaderMap::new();
 
@@ -102,6 +145,16 @@ impl IgdbApiClient {
         }
     }
 
+    /// Fetches IGDB metadata for a single game identified by its Steam App ID.
+    ///
+    /// Resolves the Steam ID to an IGDB game ID via the external-games
+    /// endpoint, then retrieves the full game record including cover art,
+    /// genres, artworks, and company roles.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IgdbError::NoData`] if no IGDB entry is linked to the given
+    /// Steam App ID.
     pub async fn get_game(&mut self, steam_game_id: u64) -> Result<IgdbGame, IgdbError> {
         let steam_game = self.get_steam_game(steam_game_id).await?;
 
@@ -129,6 +182,13 @@ impl IgdbApiClient {
         Ok(game)
     }
 
+    /// Splits a list of involved companies into publishers and developers for a given game.
+    ///
+    /// - A company is a **developer** if `game_id` appears in its `developed` list.
+    /// - A company is a **publisher** if `game_id` appears in its `published` list.
+    ///
+    /// A company can appear in both lists. Returns `(None, None)` when
+    /// `companies` is `None`.
     fn extract_game_companies(
         &self,
         companies: Option<Vec<IgdbInvolvedCompany>>,
@@ -158,6 +218,12 @@ impl IgdbApiClient {
         (Some(publishers), Some(developers))
     }
 
+    /// Fetches IGDB metadata for multiple games identified by their Steam App IDs.
+    ///
+    /// Resolves all Steam IDs to IGDB game IDs in a single batch request, then
+    /// retrieves full game records for all of them in a second batch request.
+    /// Games that have no corresponding IGDB entry are silently omitted from
+    /// the result.
     pub async fn get_games(
         &mut self,
         steam_games_ids: Vec<u64>,
@@ -201,6 +267,10 @@ impl IgdbApiClient {
         Ok(parsed)
     }
 
+    /// Resolves a batch of Steam App IDs to IGDB external-game records.
+    ///
+    /// Queries the IGDB `/external_games` endpoint filtering by
+    /// `external_game_source = 1` (Steam) and the provided UIDs.
     async fn get_steam_games(
         &mut self,
         game_ids: Vec<u64>,
@@ -223,6 +293,14 @@ impl IgdbApiClient {
         Ok(parsed)
     }
 
+    /// Resolves a single Steam App ID to its IGDB external-game record.
+    ///
+    /// Queries the IGDB `/external_games` endpoint by the Steam store URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IgdbError::NoData`] if no IGDB entry is linked to the given
+    /// Steam App ID.
     async fn get_steam_game(&mut self, game_id: u64) -> Result<IgdbAlternativeGame, IgdbError> {
         const URL: &str = "https://api.igdb.com/v4/external_games";
         let query = format!(
@@ -240,6 +318,14 @@ impl IgdbApiClient {
             .ok_or(IgdbError::NoData("Unable to find game".to_string()))
     }
 
+    /// Fetches the full game record from IGDB for a single IGDB game ID.
+    ///
+    /// Requests all standard fields plus nested `genres`, `artworks`,
+    /// `cover`, and `involved_companies` in one query.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IgdbError::NoData`] if no game with the given ID exists.
     async fn get_game_info(&mut self, igdb_game_id: u64) -> Result<IgdbGameInfo, IgdbError> {
         const URL: &str = "https://api.igdb.com/v4/games";
         let query = format!(
@@ -257,6 +343,10 @@ impl IgdbApiClient {
             .ok_or(IgdbError::NoData("Unable to find game".to_string()))
     }
 
+    /// Fetches full game records from IGDB for a batch of IGDB game IDs.
+    ///
+    /// Requests all standard fields plus nested `genres`, `artworks`,
+    /// `cover`, and `involved_companies` in a single query.
     async fn get_games_infos(
         &mut self,
         igdb_game_ids: Vec<u64>,
@@ -278,6 +368,7 @@ impl IgdbApiClient {
         Ok(parsed)
     }
 
+    /// Returns a valid Twitch access token, refreshing it if one is not cached.
     async fn get_twitch_access_token(&mut self) -> Result<String, IgdbError> {
         if let Some(token) = self.twitch_client.get_access_token() {
             return Ok(token);
@@ -286,6 +377,10 @@ impl IgdbApiClient {
         Ok(self.twitch_client.refresh_access_token().await?)
     }
 
+    /// Sends a POST request to an IGDB endpoint with an Apicalypse `query` body.
+    ///
+    /// If the first attempt returns `401 Unauthorized`, the Twitch token is
+    /// refreshed and the request is retried once with the new token.
     async fn request_with_retry(&mut self, url: &str, query: &str) -> Result<Response, IgdbError> {
         let token = self.get_twitch_access_token().await?;
 
