@@ -1,7 +1,6 @@
 use std::{fs, path::PathBuf};
 
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
-use tauri::{AppHandle, Manager};
 
 use crate::config::RocadeConfigError;
 
