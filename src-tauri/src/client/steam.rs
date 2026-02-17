@@ -34,7 +34,7 @@ impl SteamClient {
     ///
     /// Steam stores per-game metadata in `appmanifest_<id>.acf` files inside
     /// the library's `steamapps` directory.
-    fn get_game_manifest_file_path(&self, steam_game_id: String) -> Result<PathBuf, String> {
+    fn get_game_manifest_file_path(&self, steam_game_id: &str) -> Result<PathBuf, String> {
         let mut steam_dir = self.path.clone();
         steam_dir.push(format!("appmanifest_{}", steam_game_id));
         steam_dir.set_extension("acf");
@@ -46,7 +46,7 @@ impl SteamClient {
     /// Opens the URL in the OS default handler, which hands control to the
     /// running Steam client. Returns `true` if the URL was opened successfully;
     /// the actual download happens asynchronously inside Steam.
-    pub fn install_game(app_handle: AppHandle, steam_game_id: String) -> Result<bool, SteamError> {
+    pub fn install_game(app_handle: AppHandle, steam_game_id: &str) -> Result<bool, SteamError> {
         app_handle
             .opener()
             .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)?;
@@ -75,7 +75,7 @@ impl SteamClient {
     /// its `BytesToDownload` and `BytesDownloaded` fields. A game is considered
     /// installed only when both values are present and equal, meaning no pending
     /// download remains.
-    pub fn is_steam_game_installed(&self, game_id: String) -> bool {
+    pub fn is_steam_game_installed(&self, game_id: &str) -> bool {
         let manifest_file = match self.get_game_manifest_file_path(game_id) {
             Ok(file) => file,
             Err(_) => return false,

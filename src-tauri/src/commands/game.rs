@@ -172,7 +172,7 @@ pub async fn get_game(
     let mut is_installed = false;
 
     if let Some(store_id) = game.store_id.clone() {
-        is_installed = steam_client.is_steam_game_installed(store_id);
+        is_installed = steam_client.is_steam_game_installed(&store_id);
     }
 
     game.is_installed = Some(is_installed);
@@ -193,7 +193,7 @@ pub async fn install_game(
 ) -> Result<bool, RocadeError> {
     let store_id = game_repository.get_game_store_id(game_id).await?;
 
-    SteamClient::install_game(app, store_id)?;
+    SteamClient::install_game(app, &store_id)?;
 
     Ok(true)
 }
