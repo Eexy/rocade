@@ -237,11 +237,15 @@ impl IgdbApiClient {
             steam_ids_map.insert(game.id, game.uid.clone());
         }
 
-        let games_infos = self
-            .get_games_infos(steam_games.iter().map(|game| game.id).collect())
-            .await?;
+        let mut all_games_infos = Vec::new();
+        for chunck in steam_games.chunks(500) {
+            let games_infos = self
+                .get_games_infos(chunck.iter().map(|game| game.id).collect())
+                .await?;
+            all_games_infos.extend(games_infos);
+        }
 
-        let parsed: Vec<_> = games_infos
+        let parsed: Vec<_> = all_games_infos
             .into_iter()
             .map(|game| {
                 let store_id = steam_ids_map.get(&game.id).cloned();
