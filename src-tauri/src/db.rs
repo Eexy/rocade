@@ -21,6 +21,8 @@ impl DatabaseState {
 
         let pool = SqlitePool::connect_with(connection).await?;
 
+        sqlx::migrate!().run(&pool).await?;
+
         Ok(Self { pool })
     }
 
