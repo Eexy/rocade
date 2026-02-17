@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::env;
 
 use tauri::{async_runtime::Mutex, Manager};
 
@@ -76,11 +76,22 @@ pub fn run() {
                 .join("Steam")
                 .join("steamapps");
 
-            steam_path.try_exists().map_err(|_| {
-                RocadeConfigError::ConfigError(
-                    "steam client directory doesn't not exist or is not found".to_string(),
-                )
-            })?;
+            match steam_path.try_exists() {
+                Ok(true) => {}
+                Ok(false) => {
+                    return Err(RocadeConfigError::ConfigError(
+                        "Steam client directory does not exist".to_string(),
+                    )
+                    .into())
+                }
+                Err(e) => {
+                    return Err(RocadeConfigError::ConfigError(format!(
+                        "Failed to access Steam directory: {}",
+                        e
+                    ))
+                    .into())
+                }
+            }
 
             let steam_client = SteamClient::new(steam_path);
             app.manage::<SteamClient>(steam_client);
