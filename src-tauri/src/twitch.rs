@@ -38,8 +38,17 @@ impl TwitchApiClient {
     }
 
     pub async fn refresh_access_token(&mut self) -> Result<String, TwitchError> {
-        let url = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&grant_type=client_credentials", self.client_id, self.client_secret);
-        let res = self.client.post(url).send().await?;
+        let url = "https://id.twitch.tv/oauth2/token";
+        let res = self
+            .client
+            .post(url)
+            .form(&[
+                ("client_id", &self.client_id),
+                ("client_secret", &self.client_secret),
+                ("grant_type", &"client_credentials".to_string()),
+            ])
+            .send()
+            .await?;
 
         let body = res.text().await?;
 
