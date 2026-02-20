@@ -32,21 +32,6 @@ impl DatabaseState {
         sqlx::query!(
             "
             delete
-            from artworks;
-
-            delete
-            from covers;
-
-            delete
-            from belongs_to;
-
-            delete
-            from games_store;
-
-            delete
-            from developed_by;
-
-            delete
             from games;
 
             delete
