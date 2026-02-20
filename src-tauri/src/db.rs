@@ -17,7 +17,8 @@ impl DatabaseState {
         let connection = SqliteConnectOptions::new()
             .filename(&db_path)
             .create_if_missing(true)
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .pragma("foreign_keys", "ON");
 
         let pool = SqlitePool::connect_with(connection).await?;
 
