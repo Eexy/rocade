@@ -39,7 +39,7 @@ impl TwitchApiClient {
         self.client_id.deref()
     }
 
-    pub async fn refresh_access_token(&mut self) -> Result<String, TwitchError> {
+    pub async fn refresh_access_token(&mut self) -> Result<&str, TwitchError> {
         let url = "https://id.twitch.tv/oauth2/token";
         let res = self
             .client
@@ -56,12 +56,12 @@ impl TwitchApiClient {
 
         let parsed: TwitchAuthResponse = serde_json::from_str(&body)?;
 
-        self.access_token = Some(parsed.access_token.clone());
+        self.access_token = Some(parsed.access_token);
 
-        Ok(parsed.access_token.clone())
+        Ok(self.access_token.as_deref().unwrap())
     }
 
-    pub fn get_access_token(&self) -> Option<String> {
-        self.access_token.clone()
+    pub fn get_access_token(&self) -> Option<&str> {
+        self.access_token.as_deref()
     }
 }
