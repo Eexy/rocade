@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    client::steam::SteamClient,
+    client::steam::{SteamClient, SteamClientError},
     db::{
         game::{Game, GameRepository},
         DatabaseState,
@@ -29,9 +29,12 @@ pub enum RocadeError {
     /// A database operation failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
-    /// A Steam API or client operation failed.
-    #[error("steam error: {0}")]
+    /// A Steam API operation failed.
+    #[error("steam api error: {0}")]
     Steam(#[from] SteamError),
+    /// A Steam client operation failed.
+    #[error("steam local client error: {0}")]
+    SteamLocalClient(#[from] SteamClientError),
     /// An IGDB API operation failed.
     #[error("igdb error: {0}")]
     Igdb(#[from] IgdbError),

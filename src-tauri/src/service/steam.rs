@@ -21,14 +21,6 @@ pub enum SteamError {
     /// The response body could not be deserialized into the expected type.
     #[error("unable to parse steam data: {0}")]
     InvalidData(#[from] serde_json::Error),
-
-    /// Opening a `steam://` URL via the OS opener failed.
-    #[error("unable to communicate with steam client: {0}")]
-    ClientError(#[from] tauri_plugin_opener::Error),
-
-    /// The Steam client configuration (e.g. library path) is invalid.
-    #[error("invalid steam client config")]
-    ClientConfigError(String),
 }
 
 /// A game entry as returned by the Steam `GetOwnedGames` endpoint.

@@ -11,6 +11,18 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::service::steam::SteamError;
 
+/// Errors that can occur when using Steam client operations.
+#[derive(Debug, thiserror::Error)]
+pub enum SteamClientError {
+    /// Making operation to local steam client failed
+    #[error("steam operation error: {0}")]
+    OperationError(String),
+
+    /// The Steam client configuration (e.g. library path) is invalid.
+    #[error("Invalid config")]
+    ClientConfigError(String),
+}
+
 /// Interface to the locally installed Steam client.
 ///
 /// Operates on the Steam library directory to check installation state and
@@ -46,10 +58,14 @@ impl SteamClient {
     /// Opens the URL in the OS default handler, which hands control to the
     /// running Steam client. Returns `true` if the URL was opened successfully;
     /// the actual download happens asynchronously inside Steam.
-    pub fn install_game(app_handle: AppHandle, steam_game_id: &str) -> Result<bool, SteamError> {
+    pub fn install_game(
+        app_handle: AppHandle,
+        steam_game_id: &str,
+    ) -> Result<bool, SteamClientError> {
         app_handle
             .opener()
-            .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)?;
+            .open_url(format!("steam://install/{}", steam_game_id), None::<&str>)
+            .map_err(|_| SteamClientError::OperationError("unable to install game".to_string()))?;
 
         Ok(true)
     }
@@ -61,10 +77,13 @@ impl SteamClient {
     pub fn uninstall_game(
         app_handle: AppHandle,
         steam_game_id: String,
-    ) -> Result<bool, SteamError> {
+    ) -> Result<bool, SteamClientError> {
         app_handle
             .opener()
-            .open_url(format!("steam://uninstall/{}", steam_game_id), None::<&str>)?;
+            .open_url(format!("steam://uninstall/{}", steam_game_id), None::<&str>)
+            .map_err(|_| {
+                SteamClientError::OperationError("unable to uninstall game".to_string())
+            })?;
 
         Ok(true)
     }
