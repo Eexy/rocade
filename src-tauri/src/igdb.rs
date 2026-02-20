@@ -373,7 +373,7 @@ impl IgdbApiClient {
         Ok(parsed)
     }
 
-    /// Returns a valid Twitch access token, refreshing it if one is not cached.
+    /// Returns a valid Twitch access token, refreshing it if one is not cached or is expired.
     async fn get_twitch_access_token(&mut self) -> Result<String, IgdbError> {
         if let Some(token) = self.twitch_client.get_access_token() {
             return Ok(token);
