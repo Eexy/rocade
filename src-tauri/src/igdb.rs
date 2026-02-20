@@ -133,7 +133,7 @@ impl IgdbApiClient {
 
         headers.insert(
             "CLIENT-ID",
-            HeaderValue::from_str(twitch_client.get_client_id().as_str())
+            HeaderValue::from_str(twitch_client.get_client_id())
                 .expect("unable to set igdb client id"),
         );
 

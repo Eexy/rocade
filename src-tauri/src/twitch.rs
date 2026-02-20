@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use serde::Deserialize;
 use tauri_plugin_http::reqwest::{self, Client};
 
@@ -33,8 +35,8 @@ impl TwitchApiClient {
         }
     }
 
-    pub fn get_client_id(&self) -> String {
-        self.client_id.clone()
+    pub fn get_client_id(&self) -> &str {
+        self.client_id.deref()
     }
 
     pub async fn refresh_access_token(&mut self) -> Result<String, TwitchError> {
