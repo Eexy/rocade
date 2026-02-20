@@ -100,6 +100,10 @@ pub enum IgdbError {
     /// No matching game was found for the given identifier.
     #[error("unable to find game: {0}")]
     NoData(String),
+
+    /// Client error
+    #[error("igdb client error: {0}")]
+    Client(String),
 }
 
 /// Async client for the IGDB API.
@@ -128,22 +132,22 @@ impl IgdbApiClient {
     /// Builds the underlying HTTP client with the Twitch `CLIENT-ID` header
     /// pre-configured. Bearer tokens are fetched lazily on each request via
     /// the provided `twitch_client`.
-    pub fn new(twitch_client: TwitchApiClient) -> Self {
+    pub fn new(twitch_client: TwitchApiClient) -> Result<Self, IgdbError> {
         let mut headers = HeaderMap::new();
 
         headers.insert(
             "CLIENT-ID",
             HeaderValue::from_str(twitch_client.get_client_id())
-                .expect("unable to set igdb client id"),
+                .map_err(|_| IgdbError::Client("unable to set client id".to_string()))?,
         );
 
-        IgdbApiClient {
+        Ok(IgdbApiClient {
             twitch_client,
             client: tauri_plugin_http::reqwest::Client::builder()
                 .default_headers(headers)
                 .build()
-                .expect("unable to build igdb client"),
-        }
+                .map_err(|e| IgdbError::Client(e.to_string()))?,
+        })
     }
 
     /// Fetches IGDB metadata for a single game identified by its Steam App ID.

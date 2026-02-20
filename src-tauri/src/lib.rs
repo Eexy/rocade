@@ -100,7 +100,11 @@ pub fn run() {
                 rocade_config.twitch_client_id,
                 rocade_config.twitch_client_secret,
             );
-            let igdb_api_client = Mutex::new(IgdbApiClient::new(twitch_api_client));
+            let igdb_api_client = Mutex::new(
+                IgdbApiClient::new(twitch_api_client)
+                    .map_err(|e| RocadeConfigError::ConfigError(e.to_string()))?,
+            );
+
             app.manage::<Mutex<IgdbApiClient>>(igdb_api_client);
 
             Ok(())
