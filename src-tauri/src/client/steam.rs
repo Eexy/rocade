@@ -9,8 +9,6 @@ use std::{fs, path::PathBuf};
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::service::steam::SteamError;
-
 /// Errors that can occur when using Steam client operations.
 #[derive(Debug, thiserror::Error)]
 pub enum SteamClientError {
