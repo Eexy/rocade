@@ -134,22 +134,22 @@ pub async fn refresh_games(
         .get_games(games_res.iter().map(|game| game.appid).collect())
         .await?;
 
-    prepare_db(db_state.clone()).await?;
+    prepare_db(&db_state).await?;
 
-    insert_games(game_repository, igdb_games).await?;
+    insert_games(&game_repository, igdb_games).await?;
 
     Ok(())
 }
 
 /// Clears all existing game records from the database in preparation for a
 /// fresh import.
-async fn prepare_db(db_state: State<'_, DatabaseState>) -> Result<(), sqlx::Error> {
+async fn prepare_db(db_state: &DatabaseState) -> Result<(), sqlx::Error> {
     db_state.clean().await
 }
 
 /// Inserts a batch of IGDB games into the database.
 async fn insert_games(
-    game_repository: State<'_, GameRepository>,
+    game_repository: &GameRepository,
     games: Vec<IgdbGame>,
 ) -> Result<(), sqlx::Error> {
     for game in games {
