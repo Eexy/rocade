@@ -1,9 +1,14 @@
+export interface GameImage {
+    id: string
+    local_path?: string
+}
+
 export type GameInfo = {
     id: number,
     name: string,
     is_installed: boolean,
-    cover?: string,
-    artworks?: string[],
+    cover?: GameImage,
+    artworks?: GameImage[],
     genres?: string[],
     storyline?: string,
     summary?: string,

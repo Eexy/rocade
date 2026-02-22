@@ -8,9 +8,9 @@
   "permissions": [
     "core:default",
     "opener:default",
-        {
-            "identifier": "http:default",
-            "allow": [{"url": "http://api.steampowered.com/*"}]
-        }
+    {
+      "identifier": "http:default",
+      "allow": [{"url": "http://api.steampowered.com/*"}]
+    }
   ]
 }

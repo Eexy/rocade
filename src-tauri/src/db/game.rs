@@ -4,10 +4,19 @@
 //! and [`GameRepository`], which handles all SQL queries and inserts against
 //! the SQLite database.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
 
 use crate::igdb::IgdbGame;
+
+/// Represents a game image with both IGDB ID and optional local file path.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GameImage {
+    /// IGDB image ID.
+    pub id: String,
+    /// Local filesystem path to cached image, if downloaded.
+    pub local_path: Option<String>,
+}
 
 /// A fully resolved game record, ready to be serialized and sent to the
 /// frontend.
@@ -24,13 +33,13 @@ pub struct Game {
     pub summary: Option<String>,
     /// Steam App ID, sourced from the `games_store` table.
     pub store_id: Option<String>,
-    /// IGDB `image_id` of the game's cover art.
-    pub cover: Option<String>,
+    /// Game cover image with ID and optional local path.
+    pub cover: Option<GameImage>,
     /// Whether the game is fully installed in the local Steam library.
     /// Always `None` when retrieved from the database — callers must set it.
     pub is_installed: Option<bool>,
-    /// List of IGDB `image_id` values for the game's artwork images.
-    pub artworks: Option<Vec<String>>,
+    /// List of artwork images with IDs and optional local paths.
+    pub artworks: Option<Vec<GameImage>>,
     /// Unix timestamp of the game's first release.
     pub release_date: Option<i64>,
     pub genres: Option<Vec<String>>,
@@ -53,8 +62,14 @@ select
     summary, release_date,
     json_group_array(distinct genres.name) as genres,
     json_group_array(distinct companies.name) as studios,
-    json_group_array(distinct artworks.artwork_id) as artworks,
-    json_group_array(distinct covers.cover_id) as covers
+    json_group_array(distinct json_object(
+        'id', artworks.artwork_id,
+        'local_path', artworks.local_path
+    )) as artworks,
+    json_group_array(distinct json_object(
+        'id', covers.cover_id,
+        'local_path', covers.local_path
+    )) as covers
 from games
 left join developed_by on games.id = developed_by.game_id
 left join companies on developed_by.studio_id = companies.id
@@ -139,8 +154,8 @@ order by games.name
             genres: Self::parse_json_array(genres_json),
             is_installed: None,
             summary: row.get("summary"),
-            artworks: Self::parse_json_array(artworks_json),
-            cover: Self::parse_json_array(covers_json).and_then(|mut v: Vec<String>| v.pop()),
+            artworks: Self::parse_json_image_array(artworks_json),
+            cover: Self::parse_json_image_array(covers_json).and_then(|mut v| v.pop()),
             store_id: row.get("store_id"),
         }
     }
@@ -155,6 +170,33 @@ order by games.name
             serde_json::from_str::<Vec<Option<String>>>(&s)
                 .ok()
                 .map(|v| v.into_iter().flatten().collect())
+        })
+    }
+
+    /// Deserializes a JSON array of image objects into `Vec<GameImage>`,
+    /// filtering out any entries with NULL `id` fields.
+    ///
+    /// Returns `None` if the input is `None` or the JSON cannot be parsed.
+    fn parse_json_image_array(json: Option<String>) -> Option<Vec<GameImage>> {
+        json.and_then(|s| {
+            serde_json::from_str::<Vec<serde_json::Value>>(&s)
+                .ok()
+                .map(|values| {
+                    values
+                        .into_iter()
+                        .filter_map(|v| {
+                            let id = v.get("id")?.as_str()?;
+                            let local_path = v.get("local_path")
+                                .and_then(|p| p.as_str())
+                                .map(String::from);
+
+                            Some(GameImage {
+                                id: id.to_string(),
+                                local_path,
+                            })
+                        })
+                        .collect()
+                })
         })
     }
 
@@ -261,5 +303,55 @@ order by games.name
         tx.commit().await?;
 
         Ok(id)
+    }
+
+    /// Updates the local file path for a game's cover image.
+    ///
+    /// # Arguments
+    ///
+    /// * `game_id` — The database ID of the game.
+    /// * `image_id` — The IGDB image ID.
+    /// * `local_path` — The local filesystem path where the image is stored.
+    pub async fn update_cover_path(
+        &self,
+        game_id: i64,
+        image_id: &str,
+        local_path: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE covers SET local_path = ? WHERE game_id = ? AND cover_id = ?")
+            .bind(local_path)
+            .bind(game_id)
+            .bind(image_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Updates the local file paths for a game's artwork images.
+    ///
+    /// # Arguments
+    ///
+    /// * `game_id` — The database ID of the game.
+    /// * `paths` — List of tuples containing (image_id, local_path).
+    pub async fn update_artwork_paths(
+        &self,
+        game_id: i64,
+        paths: Vec<(String, String)>,
+    ) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        for (image_id, local_path) in paths {
+            sqlx::query("UPDATE artworks SET local_path = ? WHERE game_id = ? AND artwork_id = ?")
+                .bind(&local_path)
+                .bind(game_id)
+                .bind(&image_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        tx.commit().await?;
+
+        Ok(())
     }
 }

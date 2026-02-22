@@ -3,6 +3,7 @@ use std::env;
 use tauri::{async_runtime::Mutex, Manager};
 
 use crate::{
+    assets::AssetManager,
     client::steam::SteamClient,
     config::{RocadeConfig, RocadeConfigError},
     db::{game::GameRepository, DatabaseState},
@@ -11,6 +12,7 @@ use crate::{
     twitch::TwitchApiClient,
 };
 
+mod assets;
 mod client;
 mod commands;
 mod config;
@@ -54,10 +56,15 @@ pub fn run() {
                 let app_dir = app.app_handle().path().app_data_dir().map_err(|_| {
                     RocadeConfigError::ConfigError("unable to get app directory".to_string())
                 })?;
-                let db_state = db::DatabaseState::new(app_dir).await?;
+                let db_state = db::DatabaseState::new(app_dir.clone()).await?;
                 let game_repository = GameRepository::new(db_state.pool.clone());
                 app.manage::<DatabaseState>(db_state);
                 app.manage::<GameRepository>(game_repository);
+
+                let asset_manager = AssetManager::new(app_dir).await.map_err(|e| {
+                    RocadeConfigError::ConfigError(format!("failed to initialize asset manager: {}", e))
+                })?;
+                app.manage::<AssetManager>(asset_manager);
 
                 Ok::<(), RocadeConfigError>(())
             })?;
