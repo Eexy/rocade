@@ -2,9 +2,9 @@
     <div v-if="game" class="flex text-foreground justify-center">
         <div class="w-5/6 mx-auto">
             <div class="relative rounded-xl overflow-hidden">
-                <div class="aspect-21/9 relative">
-                    <img v-if="artworkUrl" :src="artworkUrl" class="w-full h-full object-cover" />
-                    <div class="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent">
+                <div class="relative bg-muted h-[400px] md:h-[500px] lg:h-[600px]">
+                    <img v-if="artworkUrl" :src="artworkUrl" class="absolute inset-0 w-full h-full object-cover" />
+                    <div class="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent pointer-events-none">
                     </div>
                     <div class="absolute bottom-0 p-6 flex flex-col gap-5">
                         <div>
