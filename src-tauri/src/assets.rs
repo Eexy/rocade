@@ -116,7 +116,10 @@ impl AssetManager {
 
     /// Downloads a single cover image with retry logic.
     async fn download_cover(&self, image_id: String) -> Result<(String, String), AssetError> {
-        let local_path = self.assets_dir.join("covers").join(format!("{}.jpg", image_id));
+        let local_path = self
+            .assets_dir
+            .join("covers")
+            .join(format!("{}.jpg", image_id));
 
         // Skip if already exists
         if local_path.exists() {
@@ -159,11 +162,7 @@ impl AssetManager {
     ///
     /// Attempts download up to 3 times with delays of 1s, 2s, 4s between attempts.
     /// Uses atomic write pattern (download to .tmp file, then rename).
-    async fn download_with_retry(
-        &self,
-        url: &str,
-        local_path: &PathBuf,
-    ) -> Result<(), AssetError> {
+    async fn download_with_retry(&self, url: &str, local_path: &PathBuf) -> Result<(), AssetError> {
         let tmp_path = local_path.with_extension("tmp");
         let max_attempts = 3;
 
@@ -174,7 +173,7 @@ impl AssetManager {
                     fs::rename(&tmp_path, local_path).await?;
                     return Ok(());
                 }
-                Err(e) => {
+                Err(_) => {
                     // Clean up tmp file on error
                     let _ = fs::remove_file(&tmp_path).await;
 
@@ -198,7 +197,7 @@ impl AssetManager {
 
         if !response.status().is_success() {
             return Err(AssetError::Request(
-                response.error_for_status().unwrap_err()
+                response.error_for_status().unwrap_err(),
             ));
         }
 
